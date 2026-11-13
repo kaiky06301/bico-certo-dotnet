@@ -119,6 +119,7 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var lista = await http.GetFromJsonAsync<PaginaResponse<OrcamentoResponse>>("/api/orcamentos");
         Assert.Equal(1, lista!.TotalElementos);
+        Assert.Equal("Usuario 30", lista.Conteudo[0].PrestadorNome);
     }
 
     [Fact]

@@ -11,6 +11,7 @@ CREATE TABLE [Orcamentos] (
     [SolicitacaoId] bigint NOT NULL,
     [ClienteId] bigint NOT NULL,
     [PrestadorId] bigint NOT NULL,
+    [PrestadorNome] nvarchar(120) NOT NULL,
     [PrestadorEmail] nvarchar(150) NOT NULL,
     [Valor] decimal(10,2) NOT NULL,
     [PrazoDias] int NOT NULL,

@@ -14,6 +14,7 @@ public class Orcamento
     /// <summary>Id (uid do JWT) do prestador que enviou a proposta.</summary>
     public long PrestadorId { get; private set; }
 
+    public string PrestadorNome { get; private set; } = string.Empty;
     public string PrestadorEmail { get; private set; } = string.Empty;
     public decimal Valor { get; private set; }
     public int PrazoDias { get; private set; }
@@ -26,7 +27,7 @@ public class Orcamento
     {
     }
 
-    public Orcamento(long solicitacaoId, long clienteId, long prestadorId, string prestadorEmail,
+    public Orcamento(long solicitacaoId, long clienteId, long prestadorId, string prestadorNome, string prestadorEmail,
                      decimal valor, int prazoDias, string? observacao)
     {
         if (valor <= 0) throw new RegraNegocioException("O valor do orçamento deve ser maior que zero.");
@@ -35,6 +36,7 @@ public class Orcamento
         SolicitacaoId = solicitacaoId;
         ClienteId = clienteId;
         PrestadorId = prestadorId;
+        PrestadorNome = prestadorNome;
         PrestadorEmail = prestadorEmail;
         Valor = valor;
         PrazoDias = prazoDias;

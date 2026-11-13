@@ -4,7 +4,7 @@ namespace BicoCerto.Contratacoes.Tests.Unidade;
 
 public class OrcamentoTests
 {
-    private static Orcamento Novo() => new(10, 1, 2, "prestador@teste.com", 150m, 2, "Levo material");
+    private static Orcamento Novo() => new(10, 1, 2, "Prestador Teste", "prestador@teste.com", 150m, 2, "Levo material");
 
     [Fact]
     public void NovoOrcamentoComecaPendente()
@@ -21,7 +21,7 @@ public class OrcamentoTests
     [InlineData(100, 61)]
     public void ValorOuPrazoInvalidoELancaRegraDeNegocio(decimal valor, int prazo)
     {
-        Assert.Throws<RegraNegocioException>(() => new Orcamento(10, 1, 2, "p@t.com", valor, prazo, null));
+        Assert.Throws<RegraNegocioException>(() => new Orcamento(10, 1, 2, "P", "p@t.com", valor, prazo, null));
     }
 
     [Fact]

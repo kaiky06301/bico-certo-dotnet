@@ -27,7 +27,7 @@ public class OrcamentoService(
 
         var clienteId = await ValidarSolicitacaoAsync(solicitacaoId, req.Valor!.Value, req.ClienteId, token, ct);
 
-        var orcamento = new Orcamento(solicitacaoId, clienteId, prestadorId, usuario.Email(), req.Valor.Value,
+        var orcamento = new Orcamento(solicitacaoId, clienteId, prestadorId, usuario.Nome(), usuario.Email(), req.Valor.Value,
             req.PrazoDias!.Value, req.Observacao?.Trim());
         db.Orcamentos.Add(orcamento);
         await db.SaveChangesAsync(ct);

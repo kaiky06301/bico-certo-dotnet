@@ -15,6 +15,7 @@ public class ContratacoesDbContext(DbContextOptions<ContratacoesDbContext> optio
         {
             e.ToTable("Orcamentos");
             e.HasKey(o => o.Id);
+            e.Property(o => o.PrestadorNome).HasMaxLength(120).IsRequired();
             e.Property(o => o.PrestadorEmail).HasMaxLength(150).IsRequired();
             e.Property(o => o.Valor).HasPrecision(10, 2);
             e.Property(o => o.Observacao).HasMaxLength(500);

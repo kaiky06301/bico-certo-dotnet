@@ -70,7 +70,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         {
             Issuer = "bico-certo-api",
             Subject = new ClaimsIdentity([new Claim("sub", $"usuario{usuarioId}@teste.com")]),
-            Claims = new Dictionary<string, object> { ["uid"] = usuarioId, ["papel"] = papel },
+            Claims = new Dictionary<string, object> { ["uid"] = usuarioId, ["papel"] = papel, ["nome"] = $"Usuario {usuarioId}" },
             Expires = DateTime.UtcNow.AddMinutes(30),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(segredo)), SecurityAlgorithms.HmacSha256)

@@ -19,6 +19,9 @@ public static class UsuarioLogado
 
     public static string Email(this ClaimsPrincipal usuario) => usuario.FindFirstValue("sub") ?? string.Empty;
 
+    /// <summary>Nome do usuario (claim "nome"); se o token nao tiver, usa o e-mail.</summary>
+    public static string Nome(this ClaimsPrincipal usuario) => usuario.FindFirstValue("nome") ?? usuario.Email();
+
     public static string Papel(this ClaimsPrincipal usuario) => usuario.FindFirstValue("papel") ?? string.Empty;
 
     public static bool EhAdmin(this ClaimsPrincipal usuario) => usuario.Papel() == Papeis.Admin;

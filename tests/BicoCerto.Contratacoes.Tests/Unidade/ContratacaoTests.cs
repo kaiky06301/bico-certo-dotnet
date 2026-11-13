@@ -7,7 +7,7 @@ public class ContratacaoTests
     private static readonly DateTime Agora = new(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc);
 
     private static Contratacao Nova() =>
-        new(new Orcamento(10, 1, 2, "p@t.com", 150m, 2, null), Agora.AddDays(2), Agora);
+        new(new Orcamento(10, 1, 2, "P", "p@t.com", 150m, 2, null), Agora.AddDays(2), Agora);
 
     [Fact]
     public void ContratacaoCopiaValorEParticipantesDoOrcamento()
@@ -24,7 +24,7 @@ public class ContratacaoTests
     [Fact]
     public void DataNoPassadoOuMuitoDistanteELancaRegraDeNegocio()
     {
-        var orcamento = new Orcamento(10, 1, 2, "p@t.com", 150m, 2, null);
+        var orcamento = new Orcamento(10, 1, 2, "P", "p@t.com", 150m, 2, null);
         Assert.Throws<RegraNegocioException>(() => new Contratacao(orcamento, Agora.AddHours(-1), Agora));
         Assert.Throws<RegraNegocioException>(() => new Contratacao(orcamento, Agora.AddDays(91), Agora));
     }

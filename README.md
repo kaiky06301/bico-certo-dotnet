@@ -93,6 +93,7 @@ erDiagram
         bigint SolicitacaoId "id do pedido na API Java"
         bigint ClienteId "uid do cliente"
         bigint PrestadorId "uid do prestador"
+        nvarchar PrestadorNome
         nvarchar PrestadorEmail
         decimal Valor
         int PrazoDias

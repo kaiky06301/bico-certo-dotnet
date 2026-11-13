@@ -36,9 +36,9 @@ public record OrcamentoUpdateRequest(
     string? Observacao);
 
 public record OrcamentoResponse(
-    long Id, long SolicitacaoId, long ClienteId, long PrestadorId, string PrestadorEmail,
+    long Id, long SolicitacaoId, long ClienteId, long PrestadorId, string PrestadorNome, string PrestadorEmail,
     decimal Valor, int PrazoDias, string? Observacao, string Status, DateTime CriadoEm, DateTime AtualizadoEm)
 {
     public static OrcamentoResponse De(Orcamento o) => new(o.Id, o.SolicitacaoId, o.ClienteId, o.PrestadorId,
-        o.PrestadorEmail, o.Valor, o.PrazoDias, o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm);
+        o.PrestadorNome, o.PrestadorEmail, o.Valor, o.PrazoDias, o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm);
 }
