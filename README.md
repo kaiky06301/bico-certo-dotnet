@@ -426,10 +426,13 @@ bico-certo-dotnet/
 
 ## 14. Declaração de uso de IA generativa
 
-| Ferramenta | Para quê |
+O grupo usou ferramentas de IA generativa **apenas como apoio**:
+
+| Uso | Para quê |
 |---|---|
-| `FERRAMENTA_1` | Apoio na pesquisa de bibliotecas e na explicação de erros |
-| `FERRAMENTA_2` | Revisão de texto da documentação |
+| Pesquisa | Consultar documentação e exemplos (Minimal APIs, Rate Limiting, EF Core) |
+| Explicação de erros | Entender mensagens de erro de compilação e de configuração durante o desenvolvimento |
+| Revisão de texto | Revisar a escrita e a formatação da documentação |
 
 Todo o código foi revisado, testado e entendido pelo grupo antes da entrega.
 
