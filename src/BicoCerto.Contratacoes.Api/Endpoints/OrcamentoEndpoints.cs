@@ -58,6 +58,35 @@ public static class OrcamentoEndpoints
             .RequireAuthorization(AutenticacaoExtensions.PoliticaPrestador)
             .WithSummary("Prestador retira (exclui) um orçamento pendente");
 
+        // ---------- negociação de valor (cliente <-> prestador) ----------
+
+        grupo.MapGet("/{id:long}/propostas", async (long id, HttpContext http, NegociacaoService service,
+                    CancellationToken ct) =>
+                TypedResults.Ok(await service.ListarAsync(http.User, id, ct)))
+            .WithSummary("Histórico da negociação de valor do orçamento")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        grupo.MapPost("/{id:long}/propostas", async Task<Created<PropostaResponse>> (long id, PropostaRequest request,
+                    HttpContext http, NegociacaoService service, CancellationToken ct) =>
+                {
+                    var criada = await service.ProporAsync(http.User, Token(http), id, request, ct);
+                    return TypedResults.Created($"/api/orcamentos/{id}/propostas/{criada.Id}", criada);
+                })
+            .RequireRateLimiting(RateLimitingExtensions.PoliticaEscrita)
+            .Validar<PropostaRequest>()
+            .Idempotente()
+            .WithSummary("Cliente ou prestador propõe outro valor, com comentário opcional (substitui a proposta em aberto)")
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
+        grupo.MapPatch("/{id:long}/propostas/{propostaId:long}", async (long id, long propostaId,
+                    RespostaPropostaRequest request, HttpContext http, NegociacaoService service, CancellationToken ct) =>
+                TypedResults.Ok(await service.ResponderAsync(http.User, id, propostaId, request.Aceita!.Value, ct)))
+            .RequireRateLimiting(RateLimitingExtensions.PoliticaEscrita)
+            .Validar<RespostaPropostaRequest>()
+            .WithSummary("A outra parte aceita (muda o valor do orçamento) ou recusa (mantém o valor atual) a proposta")
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
         return grupo;
     }
 

@@ -33,6 +33,12 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio)
                                                          && o.Status == StatusOrcamento.Pendente).ToListAsync(ct);
         concorrentes.ForEach(o => o.Recusar());
 
+        // negociações que ficaram sem resposta no pedido são encerradas (vale o valor vigente do orçamento aceito)
+        var idsDoPedido = concorrentes.Select(o => o.Id).Append(orcamento.Id).ToList();
+        var propostasAbertas = await db.Propostas.Where(p => idsDoPedido.Contains(p.OrcamentoId)
+                                                            && p.Status == StatusProposta.Pendente).ToListAsync(ct);
+        propostasAbertas.ForEach(p => p.Substituir(Agora));
+
         db.Contratacoes.Add(contratacao);
         try
         {

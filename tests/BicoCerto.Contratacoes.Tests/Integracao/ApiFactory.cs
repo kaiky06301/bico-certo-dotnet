@@ -30,6 +30,9 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// <summary>Segundo pedido ABERTO do cliente 1 (para testes que não podem dividir o mesmo pedido).</summary>
     public const long OutraSolicitacaoAberta = 12;
 
+    /// <summary>Pedido ABERTO do cliente 1 usado só no teste da negociação de valor.</summary>
+    public const long SolicitacaoNegociacao = 13;
+
     /// <summary>Pedido que já não aceita orçamentos.</summary>
     public const long SolicitacaoFechada = 11;
 
@@ -89,7 +92,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         public Task<SolicitacaoJava> ObterAsync(long solicitacaoId, string tokenBearer, CancellationToken ct) =>
             solicitacaoId switch
             {
-                SolicitacaoAberta or OutraSolicitacaoAberta => Task.FromResult(Solicitacao(solicitacaoId, "ABERTA")),
+                SolicitacaoAberta or OutraSolicitacaoAberta or SolicitacaoNegociacao => Task.FromResult(Solicitacao(solicitacaoId, "ABERTA")),
                 SolicitacaoFechada => Task.FromResult(Solicitacao(solicitacaoId, "CONCLUIDA")),
                 _ => throw new RecursoNaoEncontradoException($"Solicitação {solicitacaoId} não encontrada na API Java.")
             };

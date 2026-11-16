@@ -231,6 +231,67 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task NegociacaoDeValorEntreClienteEPrestador()
+    {
+        const long prestadorId = 90;
+        var orcamento = await CriarOrcamento(prestadorId, 180m, ApiFactory.SolicitacaoNegociacao);
+        var prestador = Prestador(prestadorId);
+        var url = $"/api/orcamentos/{orcamento.Id}/propostas";
+
+        // cliente pede um valor menor, com comentario
+        var r1 = await PostIdempotente(Cliente, url, new { valor = 140, comentario = "So a mao de obra, tenho o material" });
+        Assert.Equal(HttpStatusCode.Created, r1.StatusCode);
+        var pedidoCliente = (await r1.Content.ReadFromJsonAsync<PropostaResponse>())!;
+        Assert.Equal("Cliente", pedidoCliente.Autor);
+
+        // o orcamento mostra a proposta esperando resposta, mas o valor vigente ainda e o inicial
+        var comPendente = await prestador.GetFromJsonAsync<OrcamentoResponse>($"/api/orcamentos/{orcamento.Id}");
+        Assert.Equal(180m, comPendente!.Valor);
+        Assert.Equal(pedidoCliente.Id, comPendente.PropostaPendente!.Id);
+
+        // o cliente nao responde a propria proposta; quem nao participa nao negocia
+        var propriaResposta = await Cliente.PatchAsJsonAsync($"{url}/{pedidoCliente.Id}", new { aceita = true });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, propriaResposta.StatusCode);
+        var intruso = await PostIdempotente(OutroCliente, url, new { valor = 100 });
+        Assert.Equal(HttpStatusCode.Forbidden, intruso.StatusCode);
+
+        // contraproposta acima do preco justo e barrada
+        var abusiva = await PostIdempotente(prestador, url, new { valor = 900 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, abusiva.StatusCode);
+
+        // prestador contrapropoe: a proposta do cliente e substituida
+        var r2 = await PostIdempotente(prestador, url, new { valor = 160, comentario = "Fecho por 160" });
+        var contraproposta = (await r2.Content.ReadFromJsonAsync<PropostaResponse>())!;
+
+        // cliente recusa: continua valendo o valor inicial
+        var recusa = await Cliente.PatchAsJsonAsync($"{url}/{contraproposta.Id}", new { aceita = false });
+        Assert.Equal("Recusada", (await recusa.Content.ReadFromJsonAsync<PropostaResponse>())!.Status);
+        var aposRecusa = await Cliente.GetFromJsonAsync<OrcamentoResponse>($"/api/orcamentos/{orcamento.Id}");
+        Assert.Equal(180m, aposRecusa!.Valor);
+        Assert.Null(aposRecusa.PropostaPendente);
+
+        // nova rodada: prestador oferece 165 e o cliente aceita
+        var r3 = await PostIdempotente(prestador, url, new { valor = 165 });
+        var ultima = (await r3.Content.ReadFromJsonAsync<PropostaResponse>())!;
+        var aceite = await Cliente.PatchAsJsonAsync($"{url}/{ultima.Id}", new { aceita = true });
+        Assert.Equal(HttpStatusCode.OK, aceite.StatusCode);
+
+        var historico = await Cliente.GetFromJsonAsync<List<PropostaResponse>>(url);
+        Assert.Equal(["Substituida", "Recusada", "Aceita"], historico!.Select(p => p.Status));
+
+        // a contratacao usa o valor combinado; o inicial continua registrado
+        var contratada = await PostIdempotente(Cliente, "/api/contratacoes",
+            new { orcamentoId = orcamento.Id, dataAgendada = DataFutura });
+        Assert.Equal(165m, (await contratada.Content.ReadFromJsonAsync<ContratacaoResponse>())!.ValorAcordado);
+        var final = await Cliente.GetFromJsonAsync<OrcamentoResponse>($"/api/orcamentos/{orcamento.Id}");
+        Assert.Equal(180m, final!.ValorInicial);
+
+        // depois de contratado nao se negocia mais
+        var tarde = await PostIdempotente(Cliente, url, new { valor = 150 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, tarde.StatusCode);
+    }
+
+    [Fact]
     public async Task HealthCheckMostraApiBancoEServicoExterno()
     {
         var resposta = await factory.CreateClient().GetAsync("/health");

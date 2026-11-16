@@ -44,11 +44,29 @@ public class OrcamentoService(
         var total = await consulta.LongCountAsync(ct);
         var itens = await consulta.OrderByDescending(o => o.CriadoEm).ThenByDescending(o => o.Id)
             .Skip(p * t).Take(t).ToListAsync(ct);
-        return PaginaResponse<OrcamentoResponse>.De(itens.Select(OrcamentoResponse.De).ToList(), p, t, total);
+        var pendentes = await PropostasPendentesAsync(itens.Select(o => o.Id).ToList(), ct);
+        var respostas = itens.Select(o => OrcamentoResponse.De(o, pendentes.GetValueOrDefault(o.Id))).ToList();
+        return PaginaResponse<OrcamentoResponse>.De(respostas, p, t, total);
     }
 
-    public async Task<OrcamentoResponse> ObterAsync(ClaimsPrincipal usuario, long id, CancellationToken ct) =>
-        OrcamentoResponse.De(await ObterVisivelAsync(usuario, id, ct));
+    public async Task<OrcamentoResponse> ObterAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
+    {
+        var orcamento = await ObterVisivelAsync(usuario, id, ct);
+        var pendentes = await PropostasPendentesAsync([orcamento.Id], ct);
+        return OrcamentoResponse.De(orcamento, pendentes.GetValueOrDefault(orcamento.Id));
+    }
+
+    /// <summary>Proposta da negociação esperando resposta, por orçamento (no máximo uma por orçamento).</summary>
+    internal async Task<Dictionary<long, PropostaNegociacao>> PropostasPendentesAsync(IReadOnlyCollection<long> ids,
+                                                                                     CancellationToken ct)
+    {
+        if (ids.Count == 0) return [];
+        var pendentes = await db.Propostas
+            .Where(p => ids.Contains(p.OrcamentoId) && p.Status == StatusProposta.Pendente)
+            .ToListAsync(ct);
+        return pendentes.GroupBy(p => p.OrcamentoId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.CriadaEm).ThenByDescending(p => p.Id).First());
+    }
 
     public async Task<OrcamentoResponse> AtualizarAsync(ClaimsPrincipal usuario, string token, long id,
                                                         OrcamentoUpdateRequest req, CancellationToken ct)
@@ -57,6 +75,10 @@ public class OrcamentoService(
         orcamento.GarantirPendente("editar");
         await ValidarSolicitacaoAsync(orcamento.SolicitacaoId, req.Valor!.Value, orcamento.ClienteId, token, ct);
         orcamento.Atualizar(req.Valor.Value, req.PrazoDias!.Value, req.Observacao?.Trim());
+        // o prestador mudou o valor base: a proposta que estava em aberto deixa de valer
+        var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
+            .ToListAsync(ct);
+        abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
         await db.SaveChangesAsync(ct);
         return OrcamentoResponse.De(orcamento);
     }
@@ -74,7 +96,7 @@ public class OrcamentoService(
     /// Com a integração ligada, confere na API Java se o pedido está ABERTO e se o valor respeita o preço justo
     /// calculado pela triagem (com uma tolerância). Devolve o id do cliente dono do pedido.
     /// </summary>
-    private async Task<long> ValidarSolicitacaoAsync(long solicitacaoId, decimal valor, long? clienteInformado,
+    internal async Task<long> ValidarSolicitacaoAsync(long solicitacaoId, decimal valor, long? clienteInformado,
                                                      string token, CancellationToken ct)
     {
         if (!Java.Habilitada)
@@ -102,7 +124,7 @@ public class OrcamentoService(
         };
     }
 
-    private async Task<Orcamento> ObterVisivelAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
+    internal async Task<Orcamento> ObterVisivelAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {
         var orcamento = await db.Orcamentos.FindAsync([id], ct)
                         ?? throw new RecursoNaoEncontradoException($"Orçamento {id} não encontrado.");

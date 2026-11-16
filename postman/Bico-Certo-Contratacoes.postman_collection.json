@@ -590,6 +590,326 @@
       ]
     },
     {
+      "name": "1b - Negociacao de valor",
+      "item": [
+        {
+          "name": "Cliente propoe valor menor com comentario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 130,\n  \"comentario\": \"Consigo por 130? Ja tenho o material\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Autor e o cliente e fica pendente\", () => { const p = pm.response.json(); pm.expect(p.autor).to.eql(\"Cliente\"); pm.expect(p.status).to.eql(\"Pendente\"); });",
+                  "pm.collectionVariables.set(\"propostaClienteId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tenta aceitar a propria proposta (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas/{{propostaClienteId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceita\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Outro cliente tenta negociar (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 100\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contraproposta acima do preco justo (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 5000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestador faz contraproposta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor\": 145,\n  \"comentario\": \"Fecho por 145 com a mao de obra\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"propostaPrestadorId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente aceita a contraproposta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas/{{propostaPrestadorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceita\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200 e proposta aceita\", () => { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.eql(\"Aceita\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historico da negociacao",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}/propostas",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Primeira substituida, ultima aceita\", () => { const h = pm.response.json(); pm.expect(h.map(p => p.status)).to.eql([\"Substituida\", \"Aceita\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orcamento passa a valer o valor combinado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orcamentos/{{orcamentoId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Valor 145, inicial 160 e nada pendente\", () => { const o = pm.response.json(); pm.expect(o.valor).to.eql(145); pm.expect(o.valorInicial).to.eql(160); pm.expect(o.propostaPendente).to.eql(null); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "2 - Contratacoes",
       "item": [
         {
@@ -671,7 +991,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"contratacaoId\", pm.response.json().id);"
+                  "pm.collectionVariables.set(\"contratacaoId\", pm.response.json().id);",
+                  "pm.test(\"Contratacao pelo valor negociado (145)\", () => pm.expect(pm.response.json().valorAcordado).to.eql(145));"
                 ]
               }
             }
@@ -1019,6 +1340,14 @@
     },
     {
       "key": "chaveContratacao",
+      "value": ""
+    },
+    {
+      "key": "propostaClienteId",
+      "value": ""
+    },
+    {
+      "key": "propostaPrestadorId",
       "value": ""
     }
   ]

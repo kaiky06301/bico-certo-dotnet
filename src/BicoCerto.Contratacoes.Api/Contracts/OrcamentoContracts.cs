@@ -35,10 +35,39 @@ public record OrcamentoUpdateRequest(
     [property: StringLength(500, ErrorMessage = "A observação deve ter até 500 caracteres")]
     string? Observacao);
 
+/// <summary>
+/// Valor = valor vigente (muda quando uma proposta da negociação é aceita). ValorInicial = o que o prestador enviou.
+/// PropostaPendente = proposta da negociação esperando resposta (null se não houver).
+/// </summary>
 public record OrcamentoResponse(
     long Id, long SolicitacaoId, long ClienteId, long PrestadorId, string PrestadorNome, string PrestadorEmail,
-    decimal Valor, int PrazoDias, string? Observacao, string Status, DateTime CriadoEm, DateTime AtualizadoEm)
+    decimal Valor, decimal ValorInicial, int PrazoDias, string? Observacao, string Status, DateTime CriadoEm,
+    DateTime AtualizadoEm, PropostaResponse? PropostaPendente = null)
 {
-    public static OrcamentoResponse De(Orcamento o) => new(o.Id, o.SolicitacaoId, o.ClienteId, o.PrestadorId,
-        o.PrestadorNome, o.PrestadorEmail, o.Valor, o.PrazoDias, o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm);
+    public static OrcamentoResponse De(Orcamento o, PropostaNegociacao? pendente = null) => new(o.Id, o.SolicitacaoId,
+        o.ClienteId, o.PrestadorId, o.PrestadorNome, o.PrestadorEmail, o.Valor, o.ValorInicial, o.PrazoDias,
+        o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm,
+        pendente is null ? null : PropostaResponse.De(pendente));
+}
+
+/// <summary>Nova proposta de valor na negociação (cliente ou prestador), com comentário opcional.</summary>
+public record PropostaRequest(
+    [property: Required(ErrorMessage = "Informe o valor proposto")]
+    [property: Range(typeof(decimal), "1", "100000", ErrorMessage = "O valor deve estar entre R$ 1 e R$ 100.000")]
+    decimal? Valor,
+
+    [property: StringLength(300, ErrorMessage = "O comentário deve ter até 300 caracteres")]
+    string? Comentario);
+
+/// <summary>Resposta da outra parte a uma proposta pendente.</summary>
+public record RespostaPropostaRequest(
+    [property: Required(ErrorMessage = "Informe se aceita (true) ou recusa (false) a proposta")]
+    bool? Aceita);
+
+public record PropostaResponse(
+    long Id, long OrcamentoId, string Autor, long AutorId, string AutorNome, decimal Valor, string? Comentario,
+    string Status, DateTime CriadaEm, DateTime? RespondidaEm)
+{
+    public static PropostaResponse De(PropostaNegociacao p) => new(p.Id, p.OrcamentoId, p.Autor.ToString(), p.AutorId,
+        p.AutorNome, p.Valor, p.Comentario, p.Status.ToString(), p.CriadaEm, p.RespondidaEm);
 }

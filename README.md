@@ -37,8 +37,9 @@ O **Bico Certo** conecta moradores de bairros periféricos a prestadores de serv
 
 1. O **prestador** envia um **orçamento** (valor, prazo e observação) para um pedido aberto.
 2. O valor é conferido com o **preço justo** calculado pela triagem da API Java: proposta abusiva (mais de 30% acima do máximo justo) é recusada, o que **protege o cidadão**.
-3. O **cliente** compara as propostas e **aceita uma**, o que gera a **contratação** com data agendada. As outras propostas são recusadas automaticamente.
-4. O prestador inicia e conclui o serviço. Cliente e prestador podem reagendar ou cancelar.
+3. **Negociação de valor:** cliente e prestador podem propor outro valor, com um comentário opcional. Quem recebe a proposta **aceita**, **recusa** ou manda uma **contraproposta**. Se ninguém aceitar, continua valendo o valor atual, e nenhuma proposta pode passar do preço justo.
+4. O **cliente** compara as propostas e **aceita uma**, o que gera a **contratação** com data agendada. As outras propostas são recusadas automaticamente.
+5. O prestador inicia e conclui o serviço. Cliente e prestador podem reagendar ou cancelar.
 
 **Valor para o cidadão:** quem contrata não paga acima do preço justo e não fica com duas contratações (e duas cobranças) por causa de internet instável. O prestador ganha um fluxo profissional de proposta, aceite e agenda.
 
@@ -88,6 +89,7 @@ flowchart LR
 ```mermaid
 erDiagram
     ORCAMENTOS ||--o| CONTRATACOES : "aceito gera"
+    ORCAMENTOS ||--o{ PROPOSTAS_NEGOCIACAO : "negociado em"
     ORCAMENTOS {
         bigint Id PK
         bigint SolicitacaoId "id do pedido na API Java"
@@ -95,12 +97,25 @@ erDiagram
         bigint PrestadorId "uid do prestador"
         nvarchar PrestadorNome
         nvarchar PrestadorEmail
-        decimal Valor
+        decimal Valor "valor vigente"
+        decimal ValorInicial "valor enviado pelo prestador"
         int PrazoDias
         nvarchar Observacao
         nvarchar Status "Pendente, Aceito, Recusado"
         datetime2 CriadoEm
         datetime2 AtualizadoEm
+    }
+    PROPOSTAS_NEGOCIACAO {
+        bigint Id PK
+        bigint OrcamentoId FK "cascade"
+        nvarchar Autor "Cliente ou Prestador"
+        bigint AutorId
+        nvarchar AutorNome
+        decimal Valor
+        nvarchar Comentario "opcional"
+        nvarchar Status "Pendente, Aceita, Recusada, Substituida"
+        datetime2 CriadaEm
+        datetime2 RespondidaEm
     }
     CONTRATACOES {
         bigint Id PK
@@ -132,6 +147,19 @@ erDiagram
 - `OrcamentoId` em Contratações: um orçamento vira no máximo uma contratação.
 - `(Chave, UsuarioId, Rota)` nos registros de idempotência: barra duas requisições simultâneas com a mesma chave.
 
+**Negociação de valor (uma proposta pendente por vez):**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pendente: cliente ou prestador propoe outro valor
+    Pendente --> Aceita: a outra parte aceita (vira o valor do orcamento)
+    Pendente --> Recusada: a outra parte recusa (continua o valor atual)
+    Pendente --> Substituida: contraproposta ou contratacao antes da resposta
+    Aceita --> [*]
+    Recusada --> [*]
+    Substituida --> [*]
+```
+
 **Máquina de estados da contratação:**
 
 ```mermaid
@@ -156,7 +184,7 @@ stateDiagram-v2
 | 03 | **Idempotência** em requisições repetidas | `IdempotenciaFilter` + tabela `RegistrosIdempotencia` ([seção 5](#5-idempotência)) |
 | 04 | **Rate limiting** com HTTP **429** | `RateLimitingExtensions`: global por IP + escrita por usuário ([seção 6](#6-rate-limiting)) |
 | 05 | **JWT** com autenticação e controle de acesso + **Health checks** | `AutenticacaoExtensions` (políticas por papel), `/health`, `/health/live`, `/health/ready` |
-| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **35 testes** ([seção 11](#11-testes-xunit--postman)) |
+| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **41 testes** ([seção 11](#11-testes-xunit--postman)) |
 | | EF Core | `ContratacoesDbContext` (SQLite local / SQL Server na Azure) |
 
 **Sem credenciais no código:** o segredo do JWT e a connection string vêm de **variáveis de ambiente**. O `appsettings.json` não tem senha nem segredo.
@@ -309,6 +337,9 @@ Todos exigem `Authorization: Bearer <token>`. As listagens são paginadas (`?pag
 | GET | `/api/orcamentos/{id}` | dono | | Detalhe |
 | PUT | `/api/orcamentos/{id}` | PRESTADOR dono | | Edita orçamento pendente |
 | DELETE | `/api/orcamentos/{id}` | PRESTADOR dono | | Retira orçamento pendente |
+| GET | `/api/orcamentos/{id}/propostas` | participante | | Histórico da negociação de valor |
+| POST | `/api/orcamentos/{id}/propostas` | cliente ou prestador do orçamento | ✅ | Propõe outro valor com comentário opcional (contraproposta substitui a pendente; respeita o preço justo) |
+| PATCH | `/api/orcamentos/{id}/propostas/{propostaId}` | a outra parte | | `{"aceita": true}` muda o valor do orçamento; `false` mantém o valor atual |
 | POST | `/api/contratacoes` | CLIENTE dono | ✅ | Aceita o orçamento e agenda a data |
 | GET | `/api/contratacoes?status=` | logado | | Lista, ordenada pela data agendada |
 | GET | `/api/contratacoes/{id}` | participante | | Detalhe |
@@ -358,21 +389,22 @@ Location: /api/contratacoes/1
 dotnet test
 ```
 
-**35 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
+**41 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
 
 | Tipo | Classe | O que cobre |
 |---|---|---|
 | Unidade | `OrcamentoTests` | Criação, valores e prazos inválidos, edição só quando pendente, aceite único |
 | Unidade | `ContratacaoTests` | Datas válidas, máquina de estados e reagendamento |
+| Unidade | `PropostaNegociacaoTests` | Aceitar muda o valor, recusar mantém, autor não responde a própria proposta, proposta já respondida, orçamento já aceito |
 | Unidade | `RegrasPrecoJustoTests` | Tolerância de 30% sobre o preço justo |
-| Integração | `EndpointsTests` | 401 sem token e com token falso, 403 por papel e por dono, validação 400, falta do `Idempotency-Key`, replay idempotente, chave reutilizada (422), preço abusivo (422), pedido fechado ou inexistente, fluxo completo, CRUD, paginação e health check |
+| Integração | `EndpointsTests` | 401 sem token e com token falso, 403 por papel e por dono, validação 400, falta do `Idempotency-Key`, replay idempotente, chave reutilizada (422), preço abusivo (422), pedido fechado ou inexistente, fluxo completo, negociação de valor (proposta, contraproposta, recusa, aceite, preço justo e contratação pelo valor combinado), CRUD, paginação e health check |
 | Integração | `RateLimitingTests` | 429 com `Retry-After` |
 
-**Postman:** `postman/Bico-Certo-Contratacoes.postman_collection.json`, com **26 requisições e 34 asserções** (faz o login na API Java e percorre o fluxo inteiro). Com as duas APIs no ar:
+**Postman:** `postman/Bico-Certo-Contratacoes.postman_collection.json`, com **34 requisições e 44 asserções** (faz o login na API Java e percorre o fluxo inteiro). Com as duas APIs no ar:
 ```bash
 npx newman run postman/Bico-Certo-Contratacoes.postman_collection.json --delay-request 200
 ```
-Resultado da última execução: **26 requisições, 34 asserções, 0 falhas**.
+Resultado da última execução: **34 requisições, 44 asserções, 0 falhas**.
 
 ---
 

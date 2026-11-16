@@ -16,7 +16,12 @@ public class Orcamento
 
     public string PrestadorNome { get; private set; } = string.Empty;
     public string PrestadorEmail { get; private set; } = string.Empty;
+    /// <summary>Valor vigente: começa igual ao inicial e muda quando uma proposta da negociação é aceita.</summary>
     public decimal Valor { get; private set; }
+
+    /// <summary>Valor que o prestador enviou no orçamento (antes de qualquer negociação).</summary>
+    public decimal ValorInicial { get; private set; }
+
     public int PrazoDias { get; private set; }
     public string? Observacao { get; private set; }
     public StatusOrcamento Status { get; private set; } = StatusOrcamento.Pendente;
@@ -38,7 +43,7 @@ public class Orcamento
         PrestadorId = prestadorId;
         PrestadorNome = prestadorNome;
         PrestadorEmail = prestadorEmail;
-        Valor = valor;
+        Valor = ValorInicial = valor;
         PrazoDias = prazoDias;
         Observacao = observacao;
         CriadoEm = AtualizadoEm = DateTime.UtcNow;
@@ -49,9 +54,18 @@ public class Orcamento
         GarantirPendente("editar");
         if (valor <= 0) throw new RegraNegocioException("O valor do orçamento deve ser maior que zero.");
         if (prazoDias is < 1 or > 60) throw new RegraNegocioException("O prazo deve ser de 1 a 60 dias.");
-        Valor = valor;
+        Valor = ValorInicial = valor;
         PrazoDias = prazoDias;
         Observacao = observacao;
+        AtualizadoEm = DateTime.UtcNow;
+    }
+
+    /// <summary>Uma proposta da negociação foi aceita: o valor combinado passa a ser o vigente.</summary>
+    public void AplicarValorNegociado(decimal valor)
+    {
+        GarantirPendente("negociar");
+        if (valor <= 0) throw new RegraNegocioException("O valor negociado deve ser maior que zero.");
+        Valor = valor;
         AtualizadoEm = DateTime.UtcNow;
     }
 

@@ -2,7 +2,7 @@
 -- Bico Certo - Contratacoes API (.NET) - DDL para Azure SQL / SQL Server
 -- Gerado a partir do modelo do EF Core:
 --   dotnet ef dbcontext script -p src/BicoCerto.Contratacoes.Api -o scripts/script-bd.sql
--- Tabelas: Orcamentos, Contratacoes e RegistrosIdempotencia (+ indices)
+-- Tabelas: Orcamentos, PropostasNegociacao, Contratacoes e RegistrosIdempotencia (+ indices)
 -- Obs.: a API tambem cria as tabelas sozinha na primeira execucao (EnsureCreated).
 -- =============================================================================
 
@@ -14,6 +14,7 @@ CREATE TABLE [Orcamentos] (
     [PrestadorNome] nvarchar(120) NOT NULL,
     [PrestadorEmail] nvarchar(150) NOT NULL,
     [Valor] decimal(10,2) NOT NULL,
+    [ValorInicial] decimal(10,2) NOT NULL,
     [PrazoDias] int NOT NULL,
     [Observacao] nvarchar(500) NULL,
     [Status] nvarchar(20) NOT NULL,
@@ -56,6 +57,23 @@ CREATE TABLE [Contratacoes] (
 GO
 
 
+CREATE TABLE [PropostasNegociacao] (
+    [Id] bigint NOT NULL IDENTITY,
+    [OrcamentoId] bigint NOT NULL,
+    [Autor] nvarchar(20) NOT NULL,
+    [AutorId] bigint NOT NULL,
+    [AutorNome] nvarchar(120) NOT NULL,
+    [Valor] decimal(10,2) NOT NULL,
+    [Comentario] nvarchar(300) NULL,
+    [Status] nvarchar(20) NOT NULL,
+    [CriadaEm] datetime2 NOT NULL,
+    [RespondidaEm] datetime2 NULL,
+    CONSTRAINT [PK_PropostasNegociacao] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PropostasNegociacao_Orcamentos_OrcamentoId] FOREIGN KEY ([OrcamentoId]) REFERENCES [Orcamentos] ([Id]) ON DELETE CASCADE
+);
+GO
+
+
 CREATE INDEX [IX_Contratacoes_ClienteId] ON [Contratacoes] ([ClienteId]);
 GO
 
@@ -77,6 +95,10 @@ GO
 
 
 CREATE UNIQUE INDEX [IX_Orcamentos_SolicitacaoId_PrestadorId] ON [Orcamentos] ([SolicitacaoId], [PrestadorId]);
+GO
+
+
+CREATE INDEX [IX_PropostasNegociacao_OrcamentoId_Status] ON [PropostasNegociacao] ([OrcamentoId], [Status]);
 GO
 
 
