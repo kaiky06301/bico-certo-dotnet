@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Repositório** | `LINK_DO_REPOSITORIO` |
+| **Repositório** | https://github.com/kaiky06301/bico-certo-dotnet |
 | **API Java (núcleo do Bico Certo)** | https://github.com/kaiky06301/bico-certo-java |
 | **Swagger (local)** | http://localhost:5090/swagger |
 | **Health check** | http://localhost:5090/health |
@@ -292,7 +292,7 @@ Se a API Java cair, o status fica **Degraded** ("novos orçamentos ficam indispo
 **Pré-requisito:** .NET SDK 8.
 
 ```bash
-git clone LINK_DO_REPOSITORIO
+git clone https://github.com/kaiky06301/bico-certo-dotnet.git
 cd bico-certo-dotnet
 
 # o segredo DEVE ser o mesmo JWT_SECRET da API Java (32+ caracteres)
