@@ -5,6 +5,7 @@ using BicoCerto.Contratacoes.Api.Infrastructure.Autenticacao;
 using BicoCerto.Contratacoes.Api.Infrastructure.Erros;
 using BicoCerto.Contratacoes.Api.Infrastructure.Integracao;
 using BicoCerto.Contratacoes.Api.Infrastructure.RateLimiting;
+using BicoCerto.Contratacoes.Api.Repositories;
 using BicoCerto.Contratacoes.Api.Services;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -39,6 +40,13 @@ builder.Services.AddDbContext<ContratacoesDbContext>(options =>
 });
 
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Repository Pattern: só os repositórios acessam o DbContext (Scoped = mesmo contexto na requisição inteira)
+builder.Services.AddScoped<IOrcamentoRepository, OrcamentoRepository>();
+builder.Services.AddScoped<IPropostaRepository, PropostaRepository>();
+builder.Services.AddScoped<IContratacaoRepository, ContratacaoRepository>();
+builder.Services.AddScoped<IIdempotenciaRepository, IdempotenciaRepository>();
+
 builder.Services.AddScoped<OrcamentoService>();
 builder.Services.AddScoped<ContratacaoService>();
 builder.Services.AddScoped<NegociacaoService>();

@@ -1,9 +1,8 @@
 using System.Security.Claims;
 using BicoCerto.Contratacoes.Api.Contracts;
-using BicoCerto.Contratacoes.Api.Data;
 using BicoCerto.Contratacoes.Api.Domain;
 using BicoCerto.Contratacoes.Api.Infrastructure.Autenticacao;
-using Microsoft.EntityFrameworkCore;
+using BicoCerto.Contratacoes.Api.Repositories;
 
 namespace BicoCerto.Contratacoes.Api.Services;
 
@@ -13,7 +12,7 @@ namespace BicoCerto.Contratacoes.Api.Services;
 /// só quem recebeu a proposta responde; aceitar muda o valor vigente; recusar ou não responder mantém o valor atual;
 /// acima da faixa de referência de preço da triagem a proposta é aceita, mas o comentário (justificativa) é obrigatório.
 /// </summary>
-public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcamentos, TimeProvider relogio,
+public class NegociacaoService(IPropostaRepository propostas, OrcamentoService orcamentos, TimeProvider relogio,
     AvisoService avisos)
 {
     private DateTime Agora => relogio.GetUtcNow().UtcDateTime;
@@ -21,9 +20,8 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
     public async Task<List<PropostaResponse>> ListarAsync(ClaimsPrincipal usuario, long orcamentoId, CancellationToken ct)
     {
         await orcamentos.ObterVisivelAsync(usuario, orcamentoId, ct);
-        var propostas = await db.Propostas.Where(p => p.OrcamentoId == orcamentoId)
-            .OrderBy(p => p.CriadaEm).ThenBy(p => p.Id).ToListAsync(ct);
-        return propostas.Select(PropostaResponse.De).ToList();
+        var lista = await propostas.ListarDoOrcamentoAsync(orcamentoId, ct);
+        return lista.Select(PropostaResponse.De).ToList();
     }
 
     public async Task<PropostaResponse> ProporAsync(ClaimsPrincipal usuario, string token, long orcamentoId,
@@ -41,12 +39,11 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
         var proposta = new PropostaNegociacao(orcamento, autor, usuario.Id(), usuario.Nome(), valor, req.Comentario, Agora);
 
         // contraproposta: a proposta que estava esperando resposta deixa de valer
-        var abertas = await db.Propostas.Where(p => p.OrcamentoId == orcamentoId && p.Status == StatusProposta.Pendente)
-            .ToListAsync(ct);
+        var abertas = await propostas.ListarPendentesAsync([orcamentoId], ct);
         abertas.ForEach(p => p.Substituir(Agora));
 
-        db.Propostas.Add(proposta);
-        await db.SaveChangesAsync(ct);
+        propostas.Adicionar(proposta);
+        await propostas.SalvarAsync(ct);
         var paraQuem = autor == AutorProposta.Cliente ? orcamento.PrestadorId : orcamento.ClienteId;
         var quem = autor == AutorProposta.Cliente ? "O cliente" : orcamento.PrestadorNome;
         await avisos.AvisarAsync(orcamento.SolicitacaoId, paraQuem, TiposAviso.Negociacao,
@@ -62,13 +59,13 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
         var orcamento = await orcamentos.ObterVisivelAsync(usuario, orcamentoId, ct);
         var quemResponde = PapelNaNegociacao(usuario, orcamento);
 
-        var proposta = await db.Propostas.FirstOrDefaultAsync(p => p.Id == propostaId && p.OrcamentoId == orcamentoId, ct)
+        var proposta = await propostas.ObterAsync(propostaId, orcamentoId, ct)
                        ?? throw new RecursoNaoEncontradoException(
                            $"Proposta {propostaId} não encontrada no orçamento {orcamentoId}.");
 
         if (aceita) orcamento.GarantirDentroDaValidade(Agora);
         proposta.Responder(aceita, quemResponde, orcamento, Agora);
-        await db.SaveChangesAsync(ct);
+        await propostas.SalvarAsync(ct);
         var quem = quemResponde == AutorProposta.Cliente ? "O cliente" : orcamento.PrestadorNome;
         await avisos.AvisarAsync(orcamento.SolicitacaoId, proposta.AutorId, TiposAviso.Negociacao,
             aceita

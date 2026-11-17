@@ -65,6 +65,7 @@ flowchart LR
         FIL["Filtros:<br/>Validacao + Idempotencia"]
         EP["Endpoints<br/>/api/orcamentos<br/>/api/contratacoes"]
         SRV["Services<br/>regras de negocio"]
+        REP["Repositories<br/>(Repository Pattern)"]
         CLI["SolicitacaoJavaClient<br/>(HttpClient)"]
         HC["/health<br/>api + banco + api-java"]
     end
@@ -73,12 +74,13 @@ flowchart LR
 
     APP -- "1. login" --> LOGIN
     APP -- "2. Bearer JWT" --> RL --> AUTH --> FIL --> EP --> SRV
-    SRV --> DB
+    SRV --> REP --> DB
     SRV --> CLI -- "GET solicitacao<br/>(token do usuario)" --> SOL
     HC -.-> DB
     HC -.-> SOL
 ```
 
+- **Camadas (Repository Pattern):** Endpoints (apresentação) → Services (regras de negócio) → Repositories (acesso a dados) → `DbContext` (EF Core). Só os repositórios usam o `DbContext`. Os Services dependem de interfaces (`IOrcamentoRepository`, `IPropostaRepository`, `IContratacaoRepository`, `IIdempotenciaRepository`) injetadas como **Scoped**, então todos os repositórios compartilham o mesmo contexto durante a requisição e um único `SaveChanges` grava tudo junto.
 - **Login único:** o app faz login uma vez na API Java e usa o **mesmo token** nas duas APIs.
 - **Integração:** o `SolicitacaoJavaClient` consulta `GET /api/solicitacoes/{id}` na API Java **repassando o token do próprio usuário**. Assim a API Java aplica as mesmas regras de acesso, e o .NET recebe o status do pedido, o cliente e a faixa de preço de referência.
 - **Validade e o que está incluso:** cada orçamento tem `validadeDias` (1 a 30, padrão 7) e informa se cobre mão de obra, material, deslocamento e serviços adicionais. Depois de `validoAte` ele aparece como `expirado` e não pode ser aceito nem negociado (422) até o prestador editar, o que renova a validade.
@@ -194,6 +196,7 @@ stateDiagram-v2
 | 05 | **JWT** com autenticação e controle de acesso + **Health checks** | `AutenticacaoExtensions` (políticas por papel), `/health`, `/health/live`, `/health/ready` |
 | 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **53 testes** ([seção 11](#11-testes-xunit--postman)) |
 | | EF Core | `ContratacoesDbContext` (SQLite local / SQL Server na Azure) |
+| | Repository Pattern | `Repositories/`: interface + implementação por entidade; os Services não acessam o `DbContext` |
 
 **Sem credenciais no código:** o segredo do JWT e a connection string vêm de **variáveis de ambiente**. O `appsettings.json` não tem senha nem segredo.
 
@@ -452,6 +455,7 @@ bico-certo-dotnet/
 │   ├── Data/              DbContext (EF Core) e registro de idempotencia
 │   ├── Contracts/         DTOs (records) com DataAnnotations
 │   ├── Services/          regras de negocio (orcamentos, negociacao, contratacoes)
+│   ├── Repositories/      Repository Pattern: interfaces + implementacoes (unico acesso ao DbContext)
 │   ├── Endpoints/         Minimal APIs agrupadas por recurso
 │   ├── Infrastructure/
 │   │   ├── Autenticacao/  JWT compartilhado com a API Java + politicas por papel

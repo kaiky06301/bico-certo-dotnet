@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BicoCerto.Contratacoes.Api.Data;
 using BicoCerto.Contratacoes.Api.Infrastructure.Autenticacao;
-using Microsoft.EntityFrameworkCore;
+using BicoCerto.Contratacoes.Api.Repositories;
 
 namespace BicoCerto.Contratacoes.Api.Infrastructure.Idempotencia;
 
@@ -16,7 +16,7 @@ namespace BicoCerto.Contratacoes.Api.Infrastructure.Idempotencia;
 /// <item>Mesma chave ainda em processamento (dois cliques ao mesmo tempo): 409.</item>
 /// </list>
 /// </summary>
-public class IdempotenciaFilter(ContratacoesDbContext db, TimeProvider relogio, ILogger<IdempotenciaFilter> logger)
+public class IdempotenciaFilter(IIdempotenciaRepository registros, TimeProvider relogio, ILogger<IdempotenciaFilter> logger)
     : IEndpointFilter
 {
     public const string Header = "Idempotency-Key";
@@ -37,13 +37,11 @@ public class IdempotenciaFilter(ContratacoesDbContext db, TimeProvider relogio, 
         var hash = CalcularHash(context.Arguments);
         var agora = relogio.GetUtcNow().UtcDateTime;
 
-        var existente = await db.RegistrosIdempotencia
-            .FirstOrDefaultAsync(r => r.Chave == chave && r.UsuarioId == usuarioId && r.Rota == rota);
+        var existente = await registros.ObterAsync(chave, usuarioId, rota);
 
         if (existente is not null && existente.CriadoEm < agora - Validade)
         {
-            db.RegistrosIdempotencia.Remove(existente);
-            await db.SaveChangesAsync();
+            await registros.RemoverAsync(existente);
             existente = null;
         }
 
@@ -68,14 +66,8 @@ public class IdempotenciaFilter(ContratacoesDbContext db, TimeProvider relogio, 
         {
             Chave = chave, UsuarioId = usuarioId, Rota = rota, HashRequisicao = hash, StatusCode = 0, CriadoEm = agora
         };
-        db.RegistrosIdempotencia.Add(registro);
-        try
+        if (!await registros.ReservarAsync(registro))
         {
-            await db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            db.Entry(registro).State = EntityState.Detached;
             return Results.Problem(statusCode: 409, title: "Requisição em processamento",
                 detail: "Uma requisição com esta chave já está sendo processada.");
         }
@@ -87,7 +79,7 @@ public class IdempotenciaFilter(ContratacoesDbContext db, TimeProvider relogio, 
         }
         catch
         {
-            await Liberar(registro);
+            await registros.RemoverAsync(registro);
             throw;
         }
 
@@ -97,21 +89,14 @@ public class IdempotenciaFilter(ContratacoesDbContext db, TimeProvider relogio, 
             registro.StatusCode = status;
             registro.CorpoResposta = JsonSerializer.Serialize((resultado as IValueHttpResult)?.Value, Json);
             registro.Location = ObterLocation(resultado);
-            await db.SaveChangesAsync();
+            await registros.ConcluirAsync(registro);
         }
         else
         {
             // erro de validacao/regra: libera a chave para o usuario tentar de novo
-            await Liberar(registro);
+            await registros.RemoverAsync(registro);
         }
         return resultado;
-    }
-
-    private async Task Liberar(RegistroIdempotencia registro)
-    {
-        db.ChangeTracker.Clear();
-        db.RegistrosIdempotencia.Remove(registro);
-        await db.SaveChangesAsync();
     }
 
     private static string? ObterLocation(object? resultado) =>

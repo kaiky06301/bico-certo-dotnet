@@ -1,55 +1,48 @@
 using System.Security.Claims;
 using BicoCerto.Contratacoes.Api.Contracts;
-using BicoCerto.Contratacoes.Api.Data;
 using BicoCerto.Contratacoes.Api.Domain;
 using BicoCerto.Contratacoes.Api.Infrastructure.Autenticacao;
-using Microsoft.EntityFrameworkCore;
+using BicoCerto.Contratacoes.Api.Repositories;
 
 namespace BicoCerto.Contratacoes.Api.Services;
 
-public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, AvisoService avisos)
+public class ContratacaoService(
+    IContratacaoRepository contratacoes,
+    IOrcamentoRepository orcamentos,
+    IPropostaRepository propostas,
+    TimeProvider relogio,
+    AvisoService avisos)
 {
     private DateTime Agora => relogio.GetUtcNow().UtcDateTime;
 
     /// <summary>O cliente aceita um orçamento: cria a contratação e recusa os outros orçamentos do mesmo pedido.</summary>
     public async Task<ContratacaoResponse> CriarAsync(ClaimsPrincipal usuario, ContratacaoRequest req, CancellationToken ct)
     {
-        var orcamento = await db.Orcamentos.FindAsync([req.OrcamentoId!.Value], ct)
+        var orcamento = await orcamentos.ObterPorIdAsync(req.OrcamentoId!.Value, ct)
                         ?? throw new RecursoNaoEncontradoException($"Orçamento {req.OrcamentoId} não encontrado.");
         if (orcamento.ClienteId != usuario.Id())
             throw new AcessoNegadoException("Só o cliente dono da solicitação pode aceitar este orçamento.");
         orcamento.GarantirPendente("aceitar");
         orcamento.GarantirDentroDaValidade(Agora);
 
-        var jaContratada = await db.Contratacoes.AnyAsync(c => c.SolicitacaoId == orcamento.SolicitacaoId
-                                                               && c.Status != StatusContratacao.Cancelada, ct);
-        if (jaContratada)
+        if (await contratacoes.ExisteAtivaNoPedidoAsync(orcamento.SolicitacaoId, ct))
             throw new RegraNegocioException("Esta solicitação já tem uma contratação ativa.");
 
         await GarantirHorarioLivreAsync(orcamento.PrestadorId, ParaUtc(req.DataAgendada!.Value), null, ct);
         var contratacao = new Contratacao(orcamento, ParaUtc(req.DataAgendada!.Value), Agora);
         orcamento.Aceitar();
 
-        var concorrentes = await db.Orcamentos.Where(o => o.SolicitacaoId == orcamento.SolicitacaoId
-                                                         && o.Id != orcamento.Id
-                                                         && o.Status == StatusOrcamento.Pendente).ToListAsync(ct);
+        var concorrentes = await orcamentos.ListarPendentesDoPedidoAsync(orcamento.SolicitacaoId, orcamento.Id, ct);
         concorrentes.ForEach(o => o.Recusar());
 
         // negociações que ficaram sem resposta no pedido são encerradas (vale o valor vigente do orçamento aceito)
         var idsDoPedido = concorrentes.Select(o => o.Id).Append(orcamento.Id).ToList();
-        var propostasAbertas = await db.Propostas.Where(p => idsDoPedido.Contains(p.OrcamentoId)
-                                                            && p.Status == StatusProposta.Pendente).ToListAsync(ct);
+        var propostasAbertas = await propostas.ListarPendentesAsync(idsDoPedido, ct);
         propostasAbertas.ForEach(p => p.Substituir(Agora));
 
-        db.Contratacoes.Add(contratacao);
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
+        contratacoes.Adicionar(contratacao);
+        if (!await contratacoes.SalvarAsync(ct))
             throw new RegraNegocioException("Este orçamento já foi contratado.");
-        }
         await avisos.AvisarAsync(contratacao.SolicitacaoId, contratacao.PrestadorId, TiposAviso.Contratacao,
             $"{usuario.Nome()} aceitou o seu orçamento de {AvisoService.Moeda(contratacao.ValorAcordado)}. "
             + $"Serviço agendado para {AvisoService.DataHora(contratacao.DataAgendada)}.",
@@ -66,16 +59,13 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
     {
         var (p, t) = Paginacao.Normalizar(pagina, tamanho);
         var uid = usuario.Id();
-        var consulta = usuario.Papel() switch
+        var (clienteId, prestadorId) = usuario.Papel() switch
         {
-            Papeis.Admin => db.Contratacoes,
-            Papeis.Prestador => db.Contratacoes.Where(c => c.PrestadorId == uid),
-            _ => db.Contratacoes.Where(c => c.ClienteId == uid)
+            Papeis.Admin => ((long?)null, (long?)null),
+            Papeis.Prestador => (null, uid),
+            _ => (uid, (long?)null)
         };
-        if (status is not null) consulta = consulta.Where(c => c.Status == status);
-
-        var total = await consulta.LongCountAsync(ct);
-        var itens = await consulta.OrderBy(c => c.DataAgendada).ThenBy(c => c.Id).Skip(p * t).Take(t).ToListAsync(ct);
+        var (itens, total) = await contratacoes.ListarAsync(clienteId, prestadorId, status, p, t, ct);
         return PaginaResponse<ContratacaoResponse>.De(itens.Select(ContratacaoResponse.De).ToList(), p, t, total);
     }
 
@@ -88,7 +78,7 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
         var contratacao = await ObterDeParticipanteAsync(usuario, id, ct);
         await GarantirHorarioLivreAsync(contratacao.PrestadorId, ParaUtc(req.DataAgendada!.Value), contratacao.Id, ct);
         contratacao.Reagendar(ParaUtc(req.DataAgendada!.Value), Agora);
-        await db.SaveChangesAsync(ct);
+        await contratacoes.SalvarAsync(ct);
         var outraParte = usuario.Id() == contratacao.ClienteId ? contratacao.PrestadorId : contratacao.ClienteId;
         await avisos.AvisarAsync(contratacao.SolicitacaoId, outraParte, TiposAviso.Agendamento,
             $"O serviço do pedido #{contratacao.SolicitacaoId} foi reagendado para {AvisoService.DataHora(contratacao.DataAgendada)}.");
@@ -107,7 +97,7 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
         contratacao.AlterarStatus(novo, Agora);
         if (novo == StatusContratacao.Cancelada)
             await ReabrirOrcamentosAsync(contratacao.SolicitacaoId, ct);
-        await db.SaveChangesAsync(ct);
+        await contratacoes.SalvarAsync(ct);
         // conclusão e cancelamento pelo cliente já geram aviso na API Java (eventos do pedido)
         if (novo == StatusContratacao.EmAndamento)
             await avisos.AvisarAsync(contratacao.SolicitacaoId, contratacao.ClienteId, TiposAviso.Servico,
@@ -130,8 +120,8 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
             throw new RegraNegocioException("Só é possível excluir contratações Agendadas ou Canceladas.");
 
         await ReabrirOrcamentosAsync(contratacao.SolicitacaoId, ct);
-        db.Contratacoes.Remove(contratacao);
-        await db.SaveChangesAsync(ct);
+        contratacoes.Remover(contratacao);
+        await contratacoes.SalvarAsync(ct);
     }
 
     /// <summary>Intervalo mínimo entre dois serviços do mesmo prestador (deslocamento + execução).</summary>
@@ -140,10 +130,7 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
     /// <summary>Evita agenda sobreposta: o prestador não pode ter dois serviços ativos a menos de 2 horas.</summary>
     private async Task GarantirHorarioLivreAsync(long prestadorId, DateTime data, long? ignorar, CancellationToken ct)
     {
-        var ativos = await db.Contratacoes
-            .Where(c => c.PrestadorId == prestadorId && c.Id != (ignorar ?? 0)
-                        && (c.Status == StatusContratacao.Agendada || c.Status == StatusContratacao.EmAndamento))
-            .Select(c => c.DataAgendada).ToListAsync(ct);
+        var ativos = await contratacoes.ListarDatasOcupadasDoPrestadorAsync(prestadorId, ignorar, ct);
         var conflito = ativos.Where(d => (d - data).Duration() < IntervaloMinimo).Cast<DateTime?>().FirstOrDefault();
         if (conflito is not null)
             throw new RegraNegocioException(
@@ -153,14 +140,13 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
 
     private async Task ReabrirOrcamentosAsync(long solicitacaoId, CancellationToken ct)
     {
-        var orcamentos = await db.Orcamentos.Where(o => o.SolicitacaoId == solicitacaoId
-                                                       && o.Status != StatusOrcamento.Pendente).ToListAsync(ct);
-        orcamentos.ForEach(o => o.Reabrir());
+        var doPedido = await orcamentos.ListarNaoPendentesDoPedidoAsync(solicitacaoId, ct);
+        doPedido.ForEach(o => o.Reabrir());
     }
 
     private async Task<Contratacao> ObterVisivelAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {
-        var contratacao = await db.Contratacoes.FindAsync([id], ct)
+        var contratacao = await contratacoes.ObterPorIdAsync(id, ct)
                           ?? throw new RecursoNaoEncontradoException($"Contratação {id} não encontrada.");
         if (!usuario.EhAdmin() && !contratacao.EhParticipante(usuario.Id()))
             throw new AcessoNegadoException("Esta contratação pertence a outros usuários.");

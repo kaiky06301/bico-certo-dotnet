@@ -1,16 +1,17 @@
 using System.Security.Claims;
 using BicoCerto.Contratacoes.Api.Contracts;
-using BicoCerto.Contratacoes.Api.Data;
 using BicoCerto.Contratacoes.Api.Domain;
 using BicoCerto.Contratacoes.Api.Infrastructure.Autenticacao;
 using BicoCerto.Contratacoes.Api.Infrastructure.Integracao;
-using Microsoft.EntityFrameworkCore;
+using BicoCerto.Contratacoes.Api.Repositories;
 using Microsoft.Extensions.Options;
 
 namespace BicoCerto.Contratacoes.Api.Services;
 
 public class OrcamentoService(
-    ContratacoesDbContext db,
+    IOrcamentoRepository orcamentos,
+    IPropostaRepository propostas,
+    IContratacaoRepository contratacoes,
     ISolicitacaoJavaClient javaClient,
     IOptions<JavaApiOptions> javaOptions,
     AvisoService avisos)
@@ -23,7 +24,7 @@ public class OrcamentoService(
         var solicitacaoId = req.SolicitacaoId!.Value;
         var prestadorId = usuario.Id();
 
-        if (await db.Orcamentos.AnyAsync(o => o.SolicitacaoId == solicitacaoId && o.PrestadorId == prestadorId, ct))
+        if (await orcamentos.ExisteDoPrestadorAsync(solicitacaoId, prestadorId, ct))
             throw new RegraNegocioException("Você já enviou um orçamento para esta solicitação. Edite o existente.");
 
         var solicitacao = await ValidarSolicitacaoAsync(solicitacaoId, req.Valor!.Value, req.Observacao,
@@ -34,8 +35,8 @@ public class OrcamentoService(
         orcamento.DefinirFaixaReferencia(solicitacao.ReferenciaMinima, solicitacao.ReferenciaMaxima);
         orcamento.DefinirCondicoes(req.ValidadeDias, req.IncluiMaoDeObra, req.IncluiMaterial, req.IncluiDeslocamento,
             req.Adicionais, DateTime.UtcNow);
-        db.Orcamentos.Add(orcamento);
-        await db.SaveChangesAsync(ct);
+        orcamentos.Adicionar(orcamento);
+        await orcamentos.SalvarAsync(ct);
         await avisos.AvisarAsync(solicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
             $"{orcamento.PrestadorNome} enviou um orçamento de {AvisoService.Moeda(orcamento.Valor)} para o seu pedido"
             + (solicitacao.Categoria is null ? "." : $" de {solicitacao.Categoria.ToLowerInvariant()}."),
@@ -47,17 +48,11 @@ public class OrcamentoService(
         int? pagina, int? tamanho, CancellationToken ct)
     {
         var (p, t) = Paginacao.Normalizar(pagina, tamanho);
-        var consulta = DoUsuario(usuario);
-        if (solicitacaoId is not null) consulta = consulta.Where(o => o.SolicitacaoId == solicitacaoId);
-
-        var total = await consulta.LongCountAsync(ct);
-        var itens = await consulta.OrderByDescending(o => o.CriadoEm).ThenByDescending(o => o.Id)
-            .Skip(p * t).Take(t).ToListAsync(ct);
+        var (clienteId, prestadorId) = FiltroDoUsuario(usuario);
+        var (itens, total) = await orcamentos.ListarAsync(clienteId, prestadorId, solicitacaoId, p, t, ct);
         var pendentes = await PropostasPendentesAsync(itens.Select(o => o.Id).ToList(), ct);
         var pedidos = itens.Select(o => o.SolicitacaoId).Distinct().ToList();
-        var contratados = await db.Contratacoes
-            .Where(c => pedidos.Contains(c.SolicitacaoId) && c.Status != StatusContratacao.Cancelada)
-            .Select(c => new { c.SolicitacaoId, c.OrcamentoId }).ToListAsync(ct);
+        var contratados = await contratacoes.ListarAtivasDosPedidosAsync(pedidos, ct);
         var respostas = itens.Select(o => OrcamentoResponse.De(o, pendentes.GetValueOrDefault(o.Id),
             contratados.Any(c => c.SolicitacaoId == o.SolicitacaoId && c.OrcamentoId != o.Id))).ToList();
         return PaginaResponse<OrcamentoResponse>.De(respostas, p, t, total);
@@ -75,9 +70,7 @@ public class OrcamentoService(
                                                                                      CancellationToken ct)
     {
         if (ids.Count == 0) return [];
-        var pendentes = await db.Propostas
-            .Where(p => ids.Contains(p.OrcamentoId) && p.Status == StatusProposta.Pendente)
-            .ToListAsync(ct);
+        var pendentes = await propostas.ListarPendentesAsync(ids, ct);
         return pendentes.GroupBy(p => p.OrcamentoId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.CriadaEm).ThenByDescending(p => p.Id).First());
     }
@@ -93,10 +86,9 @@ public class OrcamentoService(
         orcamento.DefinirCondicoes(req.ValidadeDias, req.IncluiMaoDeObra, req.IncluiMaterial, req.IncluiDeslocamento,
             req.Adicionais, DateTime.UtcNow);
         // o prestador mudou o valor base: a proposta que estava em aberto deixa de valer
-        var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
-            .ToListAsync(ct);
+        var abertas = await propostas.ListarPendentesAsync([id], ct);
         abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
-        await db.SaveChangesAsync(ct);
+        await orcamentos.SalvarAsync(ct);
         await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
             $"{orcamento.PrestadorNome} atualizou o orçamento para {AvisoService.Moeda(orcamento.Valor)}.",
             orcamento.Valor, orcamento.Id);
@@ -106,16 +98,15 @@ public class OrcamentoService(
     /// <summary>O cliente dono do pedido recusa um orçamento pendente (a negociação em aberto deixa de valer).</summary>
     public async Task<OrcamentoResponse> RecusarAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {
-        var orcamento = await db.Orcamentos.FindAsync([id], ct)
+        var orcamento = await orcamentos.ObterPorIdAsync(id, ct)
                         ?? throw new RecursoNaoEncontradoException($"Orçamento {id} não encontrado.");
         if (orcamento.ClienteId != usuario.Id())
             throw new AcessoNegadoException("Só o cliente dono do pedido pode recusar este orçamento.");
         orcamento.GarantirPendente("recusar");
         orcamento.Recusar();
-        var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
-            .ToListAsync(ct);
+        var abertas = await propostas.ListarPendentesAsync([id], ct);
         abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
-        await db.SaveChangesAsync(ct);
+        await orcamentos.SalvarAsync(ct);
         await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.PrestadorId, TiposAviso.Orcamento,
             $"O cliente recusou o seu orçamento de {AvisoService.Moeda(orcamento.Valor)} para o pedido #{orcamento.SolicitacaoId}.",
             orcamento.Valor, orcamento.Id);
@@ -127,8 +118,8 @@ public class OrcamentoService(
     {
         var orcamento = await ObterDoPrestadorAsync(usuario, id, ct);
         orcamento.GarantirPendente("excluir");
-        db.Orcamentos.Remove(orcamento);
-        await db.SaveChangesAsync(ct);
+        orcamentos.Remover(orcamento);
+        await orcamentos.SalvarAsync(ct);
         await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
             $"{orcamento.PrestadorNome} retirou o orçamento de {AvisoService.Moeda(orcamento.Valor)} do seu pedido.",
             orcamento.Valor);
@@ -157,20 +148,21 @@ public class OrcamentoService(
             solicitacao.Categoria?.Nome);
     }
 
-    private IQueryable<Orcamento> DoUsuario(ClaimsPrincipal usuario)
+    /// <summary>Admin vê tudo; prestador vê os que enviou; cliente vê os que recebeu.</summary>
+    private static (long? ClienteId, long? PrestadorId) FiltroDoUsuario(ClaimsPrincipal usuario)
     {
         var id = usuario.Id();
         return usuario.Papel() switch
         {
-            Papeis.Admin => db.Orcamentos,
-            Papeis.Prestador => db.Orcamentos.Where(o => o.PrestadorId == id),
-            _ => db.Orcamentos.Where(o => o.ClienteId == id)
+            Papeis.Admin => (null, null),
+            Papeis.Prestador => (null, id),
+            _ => (id, null)
         };
     }
 
     internal async Task<Orcamento> ObterVisivelAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {
-        var orcamento = await db.Orcamentos.FindAsync([id], ct)
+        var orcamento = await orcamentos.ObterPorIdAsync(id, ct)
                         ?? throw new RecursoNaoEncontradoException($"Orçamento {id} não encontrado.");
         var uid = usuario.Id();
         if (!usuario.EhAdmin() && orcamento.ClienteId != uid && orcamento.PrestadorId != uid)
@@ -180,7 +172,7 @@ public class OrcamentoService(
 
     private async Task<Orcamento> ObterDoPrestadorAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {
-        var orcamento = await db.Orcamentos.FindAsync([id], ct)
+        var orcamento = await orcamentos.ObterPorIdAsync(id, ct)
                         ?? throw new RecursoNaoEncontradoException($"Orçamento {id} não encontrado.");
         if (orcamento.PrestadorId != usuario.Id())
             throw new AcessoNegadoException("Só o prestador que enviou o orçamento pode alterá-lo.");
