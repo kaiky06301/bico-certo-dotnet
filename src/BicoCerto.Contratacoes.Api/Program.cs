@@ -13,16 +13,21 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
+// PostgreSQL: grava DateTime como "timestamp" comum (o dominio ja trabalha em UTC)
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Banco: SQLite para rodar local sem instalar nada; SQL Server (Azure SQL) no deploy.
-// Database__Provider=SqlServer + ConnectionStrings__Default=... via variaveis de ambiente.
+// Banco: SQLite para rodar local sem instalar nada; SQL Server (Azure SQL) ou PostgreSQL (Render) no deploy.
+// Database__Provider=SqlServer|Postgres + ConnectionStrings__Default=... via variaveis de ambiente.
 var provedor = builder.Configuration["Database:Provider"] ?? "Sqlite";
 var conexao = builder.Configuration.GetConnectionString("Default") ?? "Data Source=contratacoes.db";
 builder.Services.AddDbContext<ContratacoesDbContext>(options =>
 {
     if (provedor.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
         options.UseSqlServer(conexao, sql => sql.EnableRetryOnFailure(3));
+    else if (provedor.Equals("Postgres", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(conexao, pg => pg.EnableRetryOnFailure(3));
     else
         options.UseSqlite(conexao);
 });

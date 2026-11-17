@@ -323,7 +323,7 @@ docker run -p 5090:8080 -e Jwt__Secret="..." -e JavaApi__BaseUrl="http://host.do
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `Jwt__Secret` | **obrigatória** | Mesmo segredo da API Java (32+ caracteres) |
-| `Database__Provider` | `Sqlite` | `Sqlite` ou `SqlServer` |
+| `Database__Provider` | `Sqlite` | `Sqlite`, `SqlServer` (Azure SQL) ou `Postgres` (Render) |
 | `ConnectionStrings__Default` | `Data Source=contratacoes.db` | Connection string do banco |
 | `JavaApi__Habilitada` | `true` | Liga a validação com a API Java |
 | `JavaApi__BaseUrl` | `http://localhost:8080` | Endereço da API Java |
@@ -433,6 +433,10 @@ ConnectionStrings__Default=Server=tcp:<servidor>.database.windows.net,1433;Datab
 Jwt__Secret=<segredo, como variavel secreta da pipeline>
 JavaApi__Habilitada=false
 ```
+
+### Deploy usado pelo app (Render, plano gratuito)
+
+O app mobile publicado usa esta API no Render, junto com a API Java (que está no mesmo serviço). O `render.yaml` cria o serviço a partir do `dockerfiles/Dockerfile`; o banco é um **PostgreSQL** separado no mesmo servidor gratuito da API Java (`Database__Provider=Postgres`). Na criação o Render pede `ConnectionStrings__Default` (`Host=...;Database=bico_certo_net;Username=...;Password=...`) e `Jwt__Secret` (o **mesmo** `JWT_SECRET` da API Java).
 
 Para demonstrar o CRUD no vídeo sem a API Java no ar, gere tokens com `scripts/gerar-token.py` e confira cada operação com `SELECT` direto nas tabelas `Orcamentos` e `Contratacoes`.
 
