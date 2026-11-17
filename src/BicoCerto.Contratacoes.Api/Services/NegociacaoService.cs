@@ -32,6 +32,7 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
         var orcamento = await orcamentos.ObterVisivelAsync(usuario, orcamentoId, ct);
         var autor = PapelNaNegociacao(usuario, orcamento);
         orcamento.GarantirPendente("negociar");
+        orcamento.GarantirDentroDaValidade(Agora);
 
         var valor = req.Valor!.Value;
         await orcamentos.ValidarSolicitacaoAsync(orcamento.SolicitacaoId, valor, req.Comentario, "no comentário",
@@ -65,6 +66,7 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
                        ?? throw new RecursoNaoEncontradoException(
                            $"Proposta {propostaId} não encontrada no orçamento {orcamentoId}.");
 
+        if (aceita) orcamento.GarantirDentroDaValidade(Agora);
         proposta.Responder(aceita, quemResponde, orcamento, Agora);
         await db.SaveChangesAsync(ct);
         var quem = quemResponde == AutorProposta.Cliente ? "O cliente" : orcamento.PrestadorNome;

@@ -29,6 +29,17 @@ public class Orcamento
     public int PrazoDias { get; private set; }
     public string? Observacao { get; private set; }
     public StatusOrcamento Status { get; private set; } = StatusOrcamento.Pendente;
+    /// <summary>Até quando o cliente pode aceitar ou negociar (depois disso o orçamento fica "Expirado").</summary>
+    public DateTime ValidoAte { get; private set; }
+
+    /// <summary>O que o valor cobre, para evitar desentendimento com o cliente.</summary>
+    public bool IncluiMaoDeObra { get; private set; } = true;
+    public bool IncluiMaterial { get; private set; }
+    public bool IncluiDeslocamento { get; private set; } = true;
+    public string? Adicionais { get; private set; }
+
+    public const int ValidadePadraoDias = 7;
+
     public DateTime CriadoEm { get; private set; }
     public DateTime AtualizadoEm { get; private set; }
 
@@ -62,6 +73,28 @@ public class Orcamento
         PrazoDias = prazoDias;
         Observacao = observacao;
         AtualizadoEm = DateTime.UtcNow;
+    }
+
+    /// <summary>Validade e o que está incluso. Editar o orçamento renova a validade.</summary>
+    public void DefinirCondicoes(int? validadeDias, bool? maoDeObra, bool? material, bool? deslocamento,
+                                 string? adicionais, DateTime agora)
+    {
+        var dias = validadeDias ?? ValidadePadraoDias;
+        if (dias is < 1 or > 30) throw new RegraNegocioException("A validade deve ser de 1 a 30 dias.");
+        ValidoAte = agora.AddDays(dias);
+        IncluiMaoDeObra = maoDeObra ?? true;
+        IncluiMaterial = material ?? false;
+        IncluiDeslocamento = deslocamento ?? true;
+        Adicionais = string.IsNullOrWhiteSpace(adicionais) ? null : adicionais.Trim();
+    }
+
+    public bool Expirado(DateTime agora) => Status == StatusOrcamento.Pendente && ValidoAte != default && agora > ValidoAte;
+
+    public void GarantirDentroDaValidade(DateTime agora)
+    {
+        if (Expirado(agora))
+            throw new RegraNegocioException(
+                "Este orçamento expirou. O prestador precisa renovar (editar o orçamento) para continuar.");
     }
 
     public void DefinirFaixaReferencia(decimal minima, decimal maxima)

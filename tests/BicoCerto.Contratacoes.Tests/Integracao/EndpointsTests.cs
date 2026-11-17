@@ -304,6 +304,57 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task OrcamentoTrazValidadeEOQueEstaIncluso()
+    {
+        var r = await PostIdempotente(Prestador(94), "/api/orcamentos", new
+        {
+            solicitacaoId = ApiFactory.SolicitacaoAgendaA, valor = 150, prazoDias = 1, validadeDias = 5,
+            incluiMaterial = true, incluiDeslocamento = false, adicionais = "Revisão do quadro"
+        });
+        Assert.Equal(HttpStatusCode.Created, r.StatusCode);
+        var o = (await r.Content.ReadFromJsonAsync<OrcamentoResponse>())!;
+        Assert.InRange(o.ValidoAte!.Value, DateTime.UtcNow.AddDays(4.9), DateTime.UtcNow.AddDays(5.1));
+        Assert.False(o.Expirado);
+        Assert.True(o.IncluiMaoDeObra);
+        Assert.True(o.IncluiMaterial);
+        Assert.False(o.IncluiDeslocamento);
+        Assert.Equal("Revisão do quadro", o.Adicionais);
+
+        var invalida = await PostIdempotente(Prestador(95), "/api/orcamentos",
+            new { solicitacaoId = ApiFactory.SolicitacaoAgendaA, valor = 150, prazoDias = 1, validadeDias = 40 });
+        Assert.Equal(HttpStatusCode.BadRequest, invalida.StatusCode);
+    }
+
+    [Fact]
+    public async Task PrestadorNaoTemDoisServicosNoMesmoHorario()
+    {
+        const long prestador = 93;
+        var primeiro = await CriarOrcamento(prestador, 150m, ApiFactory.SolicitacaoAgendaA);
+        var segundo = await CriarOrcamento(prestador, 150m, ApiFactory.SolicitacaoAgendaB);
+        var data = DateTime.UtcNow.AddDays(9).Date.AddHours(13);
+
+        var r1 = await PostIdempotente(Cliente, "/api/contratacoes", new { orcamentoId = primeiro.Id, dataAgendada = data });
+        Assert.Equal(HttpStatusCode.Created, r1.StatusCode);
+
+        // uma hora depois: conflito
+        var conflito = await PostIdempotente(Cliente, "/api/contratacoes",
+            new { orcamentoId = segundo.Id, dataAgendada = data.AddHours(1) });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, conflito.StatusCode);
+        Assert.Contains("perto desse horário", await conflito.Content.ReadAsStringAsync());
+
+        // tres horas depois: livre
+        var livre = await PostIdempotente(Cliente, "/api/contratacoes",
+            new { orcamentoId = segundo.Id, dataAgendada = data.AddHours(3) });
+        Assert.Equal(HttpStatusCode.Created, livre.StatusCode);
+
+        // reagendar o primeiro para cima do segundo tambem e barrado
+        var c1 = (await r1.Content.ReadFromJsonAsync<ContratacaoResponse>())!;
+        var reagenda = await Prestador(prestador).PutAsJsonAsync($"/api/contratacoes/{c1.Id}/agendamento",
+            new { dataAgendada = data.AddHours(2.5) });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, reagenda.StatusCode);
+    }
+
+    [Fact]
     public async Task ClienteRecusaOrcamentoPendente()
     {
         var orcamento = await CriarOrcamento(91, 150m, ApiFactory.SolicitacaoNegociacao);

@@ -32,6 +32,8 @@ public class OrcamentoService(
         var orcamento = new Orcamento(solicitacaoId, solicitacao.ClienteId, prestadorId, usuario.Nome(), usuario.Email(),
             req.Valor.Value, req.PrazoDias!.Value, req.Observacao?.Trim());
         orcamento.DefinirFaixaReferencia(solicitacao.ReferenciaMinima, solicitacao.ReferenciaMaxima);
+        orcamento.DefinirCondicoes(req.ValidadeDias, req.IncluiMaoDeObra, req.IncluiMaterial, req.IncluiDeslocamento,
+            req.Adicionais, DateTime.UtcNow);
         db.Orcamentos.Add(orcamento);
         await db.SaveChangesAsync(ct);
         await avisos.AvisarAsync(solicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
@@ -88,6 +90,8 @@ public class OrcamentoService(
         await ValidarSolicitacaoAsync(orcamento.SolicitacaoId, req.Valor!.Value, req.Observacao, "na observação",
             orcamento.ClienteId, token, ct);
         orcamento.Atualizar(req.Valor.Value, req.PrazoDias!.Value, req.Observacao?.Trim());
+        orcamento.DefinirCondicoes(req.ValidadeDias, req.IncluiMaoDeObra, req.IncluiMaterial, req.IncluiDeslocamento,
+            req.Adicionais, DateTime.UtcNow);
         // o prestador mudou o valor base: a proposta que estava em aberto deixa de valer
         var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
             .ToListAsync(ct);
@@ -125,6 +129,9 @@ public class OrcamentoService(
         orcamento.GarantirPendente("excluir");
         db.Orcamentos.Remove(orcamento);
         await db.SaveChangesAsync(ct);
+        await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
+            $"{orcamento.PrestadorNome} retirou o orçamento de {AvisoService.Moeda(orcamento.Valor)} do seu pedido.",
+            orcamento.Valor);
     }
 
     /// <summary>

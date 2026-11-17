@@ -23,6 +23,7 @@ public class ContratacoesDbContext(DbContextOptions<ContratacoesDbContext> optio
             e.Property(o => o.ReferenciaMinima).HasPrecision(10, 2);
             e.Property(o => o.ReferenciaMaxima).HasPrecision(10, 2);
             e.Property(o => o.Observacao).HasMaxLength(500);
+            e.Property(o => o.Adicionais).HasMaxLength(200);
             e.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(o => o.SolicitacaoId);
             e.HasIndex(o => o.PrestadorId);

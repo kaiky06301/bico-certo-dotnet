@@ -21,7 +21,17 @@ public record OrcamentoRequest(
     string? Observacao,
 
     /// <summary>Usado só quando a integração com a API Java está desligada (ex.: ambiente da DevOps).</summary>
-    long? ClienteId);
+    long? ClienteId,
+    /// <summary>Validade da proposta em dias (1 a 30; padrão 7).</summary>
+    [property: Range(1, 30, ErrorMessage = "A validade deve ser de 1 a 30 dias")]
+    int? ValidadeDias = null,
+
+    bool? IncluiMaoDeObra = null,
+    bool? IncluiMaterial = null,
+    bool? IncluiDeslocamento = null,
+
+    [property: StringLength(200, ErrorMessage = "Os serviços adicionais devem ter até 200 caracteres")]
+    string? Adicionais = null);
 
 public record OrcamentoUpdateRequest(
     [property: Required(ErrorMessage = "Informe o valor")]
@@ -33,7 +43,17 @@ public record OrcamentoUpdateRequest(
     int? PrazoDias,
 
     [property: StringLength(500, ErrorMessage = "A observação deve ter até 500 caracteres")]
-    string? Observacao);
+    string? Observacao,
+    /// <summary>Validade da proposta em dias (1 a 30; padrão 7).</summary>
+    [property: Range(1, 30, ErrorMessage = "A validade deve ser de 1 a 30 dias")]
+    int? ValidadeDias = null,
+
+    bool? IncluiMaoDeObra = null,
+    bool? IncluiMaterial = null,
+    bool? IncluiDeslocamento = null,
+
+    [property: StringLength(200, ErrorMessage = "Os serviços adicionais devem ter até 200 caracteres")]
+    string? Adicionais = null);
 
 /// <summary>
 /// Valor = valor vigente (muda quando uma proposta da negociação é aceita). ValorInicial = o que o prestador enviou.
@@ -45,13 +65,17 @@ public record OrcamentoResponse(
     long Id, long SolicitacaoId, long ClienteId, long PrestadorId, string PrestadorNome, string PrestadorEmail,
     decimal Valor, decimal ValorInicial, decimal ReferenciaMinima, decimal ReferenciaMaxima, string PosicaoNaFaixa,
     int PrazoDias, string? Observacao, string Status, DateTime CriadoEm, DateTime AtualizadoEm,
-    PropostaResponse? PropostaPendente = null, bool ClienteContratouOutro = false)
+    PropostaResponse? PropostaPendente = null, bool ClienteContratouOutro = false,
+    DateTime? ValidoAte = null, bool Expirado = false, bool IncluiMaoDeObra = true, bool IncluiMaterial = false,
+    bool IncluiDeslocamento = true, string? Adicionais = null)
 {
     public static OrcamentoResponse De(Orcamento o, PropostaNegociacao? pendente = null, bool contratouOutro = false) => new(o.Id, o.SolicitacaoId,
         o.ClienteId, o.PrestadorId, o.PrestadorNome, o.PrestadorEmail, o.Valor, o.ValorInicial, o.ReferenciaMinima,
         o.ReferenciaMaxima, FaixaReferencia.Posicao(o.Valor, o.ReferenciaMinima, o.ReferenciaMaxima), o.PrazoDias,
         o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm,
-        pendente is null ? null : PropostaResponse.De(pendente), contratouOutro);
+        pendente is null ? null : PropostaResponse.De(pendente), contratouOutro,
+        o.ValidoAte == default ? null : o.ValidoAte, o.Expirado(DateTime.UtcNow), o.IncluiMaoDeObra, o.IncluiMaterial,
+        o.IncluiDeslocamento, o.Adicionais);
 }
 
 /// <summary>Nova proposta de valor na negociação (cliente ou prestador), com comentário opcional.</summary>

@@ -54,4 +54,29 @@ public class OrcamentoTests
         aceito.Reabrir();
         Assert.Equal(StatusOrcamento.Pendente, aceito.Status);
     }
+
+    [Fact]
+    public void OrcamentoExpiraDepoisDaValidadeENaoPodeSerAceito()
+    {
+        var orcamento = Novo();
+        var agora = new DateTime(2026, 11, 17, 12, 0, 0, DateTimeKind.Utc);
+        orcamento.DefinirCondicoes(3, true, true, false, "Troca do disjuntor", agora);
+
+        Assert.Equal(agora.AddDays(3), orcamento.ValidoAte);
+        Assert.True(orcamento.IncluiMaterial);
+        Assert.False(orcamento.IncluiDeslocamento);
+        Assert.False(orcamento.Expirado(agora.AddDays(2)));
+        Assert.True(orcamento.Expirado(agora.AddDays(4)));
+        Assert.Throws<RegraNegocioException>(() => orcamento.GarantirDentroDaValidade(agora.AddDays(4)));
+
+        // editar renova a validade
+        orcamento.DefinirCondicoes(7, null, null, null, null, agora.AddDays(4));
+        Assert.False(orcamento.Expirado(agora.AddDays(5)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(31)]
+    public void ValidadeForaDe1A30DiasERecusada(int dias) =>
+        Assert.Throws<RegraNegocioException>(() => Novo().DefinirCondicoes(dias, null, null, null, null, DateTime.UtcNow));
 }

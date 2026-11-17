@@ -19,12 +19,14 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
         if (orcamento.ClienteId != usuario.Id())
             throw new AcessoNegadoException("Só o cliente dono da solicitação pode aceitar este orçamento.");
         orcamento.GarantirPendente("aceitar");
+        orcamento.GarantirDentroDaValidade(Agora);
 
         var jaContratada = await db.Contratacoes.AnyAsync(c => c.SolicitacaoId == orcamento.SolicitacaoId
                                                                && c.Status != StatusContratacao.Cancelada, ct);
         if (jaContratada)
             throw new RegraNegocioException("Esta solicitação já tem uma contratação ativa.");
 
+        await GarantirHorarioLivreAsync(orcamento.PrestadorId, ParaUtc(req.DataAgendada!.Value), null, ct);
         var contratacao = new Contratacao(orcamento, ParaUtc(req.DataAgendada!.Value), Agora);
         orcamento.Aceitar();
 
@@ -84,6 +86,7 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
                                                          CancellationToken ct)
     {
         var contratacao = await ObterDeParticipanteAsync(usuario, id, ct);
+        await GarantirHorarioLivreAsync(contratacao.PrestadorId, ParaUtc(req.DataAgendada!.Value), contratacao.Id, ct);
         contratacao.Reagendar(ParaUtc(req.DataAgendada!.Value), Agora);
         await db.SaveChangesAsync(ct);
         var outraParte = usuario.Id() == contratacao.ClienteId ? contratacao.PrestadorId : contratacao.ClienteId;
@@ -129,6 +132,23 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, 
         await ReabrirOrcamentosAsync(contratacao.SolicitacaoId, ct);
         db.Contratacoes.Remove(contratacao);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Intervalo mínimo entre dois serviços do mesmo prestador (deslocamento + execução).</summary>
+    public static readonly TimeSpan IntervaloMinimo = TimeSpan.FromHours(2);
+
+    /// <summary>Evita agenda sobreposta: o prestador não pode ter dois serviços ativos a menos de 2 horas.</summary>
+    private async Task GarantirHorarioLivreAsync(long prestadorId, DateTime data, long? ignorar, CancellationToken ct)
+    {
+        var ativos = await db.Contratacoes
+            .Where(c => c.PrestadorId == prestadorId && c.Id != (ignorar ?? 0)
+                        && (c.Status == StatusContratacao.Agendada || c.Status == StatusContratacao.EmAndamento))
+            .Select(c => c.DataAgendada).ToListAsync(ct);
+        var conflito = ativos.Where(d => (d - data).Duration() < IntervaloMinimo).Cast<DateTime?>().FirstOrDefault();
+        if (conflito is not null)
+            throw new RegraNegocioException(
+                $"O prestador já tem um serviço agendado perto desse horário ({AvisoService.DataHora(conflito.Value)}). " +
+                "Escolha outro horário.");
     }
 
     private async Task ReabrirOrcamentosAsync(long solicitacaoId, CancellationToken ct)
