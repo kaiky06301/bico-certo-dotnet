@@ -10,8 +10,14 @@ public class ContratacoesDbContext(DbContextOptions<ContratacoesDbContext> optio
     public DbSet<Contratacao> Contratacoes => Set<Contratacao>();
     public DbSet<RegistroIdempotencia> RegistrosIdempotencia => Set<RegistroIdempotencia>();
 
+    public const string EsquemaPostgres = "net";
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // PostgreSQL (Render): o banco e compartilhado com a API Java, entao as tabelas do .NET ficam no schema "net"
+        if (Database.IsNpgsql())
+            modelBuilder.HasDefaultSchema(EsquemaPostgres);
+
         modelBuilder.Entity<Orcamento>(e =>
         {
             e.ToTable("Orcamentos");

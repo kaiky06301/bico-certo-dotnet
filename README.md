@@ -436,7 +436,7 @@ JavaApi__Habilitada=false
 
 ### Deploy usado pelo app (Render, plano gratuito)
 
-O app mobile publicado usa esta API no Render, junto com a API Java (que está no mesmo serviço). O `render.yaml` cria o serviço a partir do `dockerfiles/Dockerfile`; o banco é um **PostgreSQL** separado no mesmo servidor gratuito da API Java (`Database__Provider=Postgres`). Na criação o Render pede `ConnectionStrings__Default` (`Host=...;Database=bico_certo_net;Username=...;Password=...`) e `Jwt__Secret` (o **mesmo** `JWT_SECRET` da API Java).
+O app mobile publicado usa esta API no Render, junto com a API Java (que está no mesmo serviço). O serviço é criado pelo `render.yaml` do [repositório Java](https://github.com/kaiky06301/bico-certo-java/blob/main/render.yaml), a partir do `dockerfiles/Dockerfile` deste repositório. Ele usa o **mesmo PostgreSQL gratuito** da API Java, com as tabelas do .NET no schema `net` (`Database__Provider=Postgres`), e recebe automaticamente as variáveis do banco (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`) e o **mesmo** `JWT_SECRET` da API Java em `Jwt__Secret`, sem nenhum segredo no Git.
 
 Para demonstrar o CRUD no vídeo sem a API Java no ar, gere tokens com `scripts/gerar-token.py` e confira cada operação com `SELECT` direto nas tabelas `Orcamentos` e `Contratacoes`.
 

@@ -22,6 +22,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Database__Provider=SqlServer|Postgres + ConnectionStrings__Default=... via variaveis de ambiente.
 var provedor = builder.Configuration["Database:Provider"] ?? "Sqlite";
 var conexao = builder.Configuration.GetConnectionString("Default") ?? "Data Source=contratacoes.db";
+// Render: o Blueprint entrega host/porta/banco/usuario/senha do PostgreSQL em variaveis separadas
+if (provedor.Equals("Postgres", StringComparison.OrdinalIgnoreCase) && builder.Configuration["DB_HOST"] is { } hostPg)
+{
+    conexao = $"Host={hostPg};Port={builder.Configuration["DB_PORT"] ?? "5432"};Database={builder.Configuration["DB_NAME"]};" +
+              $"Username={builder.Configuration["DB_USERNAME"]};Password={builder.Configuration["DB_PASSWORD"]}";
+}
 builder.Services.AddDbContext<ContratacoesDbContext>(options =>
 {
     if (provedor.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
@@ -93,7 +99,20 @@ var app = builder.Build();
 
 using (var escopo = app.Services.CreateScope())
 {
-    escopo.ServiceProvider.GetRequiredService<ContratacoesDbContext>().Database.EnsureCreated();
+    var db = escopo.ServiceProvider.GetRequiredService<ContratacoesDbContext>();
+    if (db.Database.IsNpgsql())
+    {
+        // Banco compartilhado com a API Java: EnsureCreated veria as tabelas do Java e nao criaria as do .NET,
+        // entao as tabelas sao criadas no schema "net" quando ainda nao existem.
+        var existe = db.Database.SqlQueryRaw<bool>(
+            "SELECT to_regclass('net.\"Orcamentos\"') IS NOT NULL AS \"Value\"").AsEnumerable().First();
+        if (!existe)
+            db.Database.ExecuteSqlRaw(db.Database.GenerateCreateScript());
+    }
+    else
+    {
+        db.Database.EnsureCreated();
+    }
 }
 
 app.UseExceptionHandler();
