@@ -27,7 +27,7 @@ public static class OrcamentoEndpoints
             .RequireRateLimiting(RateLimitingExtensions.PoliticaEscrita)
             .Validar<OrcamentoRequest>()
             .Idempotente()
-            .WithSummary("Prestador envia orçamento para uma solicitação (idempotente, valida o preço justo na API Java)")
+            .WithSummary("Prestador envia orçamento para uma solicitação (idempotente, consulta a faixa de referência de preço na API Java)")
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
@@ -75,7 +75,7 @@ public static class OrcamentoEndpoints
             .RequireRateLimiting(RateLimitingExtensions.PoliticaEscrita)
             .Validar<PropostaRequest>()
             .Idempotente()
-            .WithSummary("Cliente ou prestador propõe outro valor, com comentário opcional (substitui a proposta em aberto)")
+            .WithSummary("Cliente ou prestador propõe outro valor, com comentário opcional (substitui a proposta em aberto; acima da faixa de referência exige comentário)")
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 

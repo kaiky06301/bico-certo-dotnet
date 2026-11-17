@@ -20,6 +20,8 @@ public class ContratacoesDbContext(DbContextOptions<ContratacoesDbContext> optio
             e.Property(o => o.PrestadorEmail).HasMaxLength(150).IsRequired();
             e.Property(o => o.Valor).HasPrecision(10, 2);
             e.Property(o => o.ValorInicial).HasPrecision(10, 2);
+            e.Property(o => o.ReferenciaMinima).HasPrecision(10, 2);
+            e.Property(o => o.ReferenciaMaxima).HasPrecision(10, 2);
             e.Property(o => o.Observacao).HasMaxLength(500);
             e.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
             e.HasIndex(o => o.SolicitacaoId);

@@ -25,10 +25,12 @@ public class OrcamentoService(
         if (await db.Orcamentos.AnyAsync(o => o.SolicitacaoId == solicitacaoId && o.PrestadorId == prestadorId, ct))
             throw new RegraNegocioException("Você já enviou um orçamento para esta solicitação. Edite o existente.");
 
-        var clienteId = await ValidarSolicitacaoAsync(solicitacaoId, req.Valor!.Value, req.ClienteId, token, ct);
+        var solicitacao = await ValidarSolicitacaoAsync(solicitacaoId, req.Valor!.Value, req.Observacao,
+            "na observação", req.ClienteId, token, ct);
 
-        var orcamento = new Orcamento(solicitacaoId, clienteId, prestadorId, usuario.Nome(), usuario.Email(), req.Valor.Value,
-            req.PrazoDias!.Value, req.Observacao?.Trim());
+        var orcamento = new Orcamento(solicitacaoId, solicitacao.ClienteId, prestadorId, usuario.Nome(), usuario.Email(),
+            req.Valor.Value, req.PrazoDias!.Value, req.Observacao?.Trim());
+        orcamento.DefinirFaixaReferencia(solicitacao.ReferenciaMinima, solicitacao.ReferenciaMaxima);
         db.Orcamentos.Add(orcamento);
         await db.SaveChangesAsync(ct);
         return OrcamentoResponse.De(orcamento);
@@ -73,7 +75,8 @@ public class OrcamentoService(
     {
         var orcamento = await ObterDoPrestadorAsync(usuario, id, ct);
         orcamento.GarantirPendente("editar");
-        await ValidarSolicitacaoAsync(orcamento.SolicitacaoId, req.Valor!.Value, orcamento.ClienteId, token, ct);
+        await ValidarSolicitacaoAsync(orcamento.SolicitacaoId, req.Valor!.Value, req.Observacao, "na observação",
+            orcamento.ClienteId, token, ct);
         orcamento.Atualizar(req.Valor.Value, req.PrazoDias!.Value, req.Observacao?.Trim());
         // o prestador mudou o valor base: a proposta que estava em aberto deixa de valer
         var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
@@ -93,24 +96,25 @@ public class OrcamentoService(
     }
 
     /// <summary>
-    /// Com a integração ligada, confere na API Java se o pedido está ABERTO e se o valor respeita o preço justo
-    /// calculado pela triagem (com uma tolerância). Devolve o id do cliente dono do pedido.
+    /// Com a integração ligada, confere na API Java se o pedido está ABERTO e busca a faixa de referência de preço
+    /// calculada pela triagem. Valor acima da faixa é permitido, mas precisa de justificativa.
     /// </summary>
-    internal async Task<long> ValidarSolicitacaoAsync(long solicitacaoId, decimal valor, long? clienteInformado,
-                                                     string token, CancellationToken ct)
+    internal async Task<SolicitacaoValidada> ValidarSolicitacaoAsync(long solicitacaoId, decimal valor,
+        string? justificativa, string ondeExplicar, long? clienteInformado, string token, CancellationToken ct)
     {
         if (!Java.Habilitada)
         {
-            return clienteInformado ?? throw new RegraNegocioException(
+            var cliente = clienteInformado ?? throw new RegraNegocioException(
                 "Integração com a API Java desligada: informe o clienteId da solicitação.");
+            return new SolicitacaoValidada(cliente, 0m, 0m);
         }
 
         var solicitacao = await javaClient.ObterAsync(solicitacaoId, token, ct);
         if (!string.Equals(solicitacao.Status, "ABERTA", StringComparison.OrdinalIgnoreCase))
             throw new RegraNegocioException($"A solicitação {solicitacaoId} não está aberta para orçamentos.");
 
-        RegrasPrecoJusto.Validar(valor, solicitacao.PrecoMaximo, Java.ToleranciaPrecoJusto);
-        return solicitacao.Cliente.Id;
+        FaixaReferencia.ExigirJustificativaSeAcima(valor, solicitacao.PrecoMaximo, justificativa, ondeExplicar);
+        return new SolicitacaoValidada(solicitacao.Cliente.Id, solicitacao.PrecoMinimo, solicitacao.PrecoMaximo);
     }
 
     private IQueryable<Orcamento> DoUsuario(ClaimsPrincipal usuario)
@@ -144,15 +148,4 @@ public class OrcamentoService(
     }
 }
 
-/// <summary>Protege o cidadão: orçamento muito acima do preço justo calculado pela triagem é recusado.</summary>
-public static class RegrasPrecoJusto
-{
-    public static void Validar(decimal valor, decimal precoMaximoJusto, decimal tolerancia)
-    {
-        if (precoMaximoJusto <= 0) return;
-        var limite = Math.Round(precoMaximoJusto * (1 + tolerancia), 2);
-        if (valor > limite)
-            throw new RegraNegocioException(
-                $"O valor R$ {valor:N2} está acima do preço justo para este serviço (máximo aceito: R$ {limite:N2}).");
-    }
-}
+public record SolicitacaoValidada(long ClienteId, decimal ReferenciaMinima, decimal ReferenciaMaxima);

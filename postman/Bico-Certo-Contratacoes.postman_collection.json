@@ -319,7 +319,7 @@
           ]
         },
         {
-          "name": "Orcamento abusivo acima do preco justo (422)",
+          "name": "Orcamento acima da faixa de referencia sem justificativa (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -355,7 +355,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Explica o preco justo\", () => pm.expect(pm.response.json().detail).to.include(\"preço justo\"));"
+                  "pm.test(\"Pede para explicar o motivo\", () => pm.expect(pm.response.json().detail).to.include(\"faixa de referência\"));"
                 ]
               }
             }
@@ -717,7 +717,7 @@
           ]
         },
         {
-          "name": "Contraproposta acima do preco justo (422)",
+          "name": "Contraproposta acima da faixa sem comentario (422)",
           "request": {
             "method": "POST",
             "header": [

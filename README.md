@@ -1,7 +1,7 @@
 # Bico Certo - Contratações API (.NET)
 
 > **Global Solution 2026/2 · CitizenTech · Advanced Business Development with .NET (FIAP)**
-> Módulo de **orçamentos e contratação** do Bico Certo: o prestador do bairro envia um orçamento para o pedido do morador e o morador contrata com segurança, **sem pagar acima do preço justo** e **sem contratar duas vezes** por causa de um clique repetido.
+> Módulo de **orçamentos e contratação** do Bico Certo: o prestador do bairro envia um orçamento para o pedido do morador e o morador contrata com segurança, **sabendo se o valor está dentro da faixa de referência** e **sem contratar duas vezes** por causa de um clique repetido.
 
 | | |
 |---|---|
@@ -33,15 +33,15 @@
 
 ## 1. O problema e a solução
 
-O **Bico Certo** conecta moradores de bairros periféricos a prestadores de serviço locais (eletricistas, encanadores, diaristas). A **API Java** recebe o pedido, faz a triagem com IA (categoria, urgência e **faixa de preço justo**) e avisa os prestadores. Esta **API .NET** cuida da parte comercial:
+O **Bico Certo** conecta moradores de bairros periféricos a prestadores de serviço locais (eletricistas, encanadores, diaristas). A **API Java** recebe o pedido, faz a triagem com IA (categoria, urgência e **faixa de preço de referência**) e avisa os prestadores. Esta **API .NET** cuida da parte comercial:
 
 1. O **prestador** envia um **orçamento** (valor, prazo e observação) para um pedido aberto.
-2. O valor é conferido com o **preço justo** calculado pela triagem da API Java: proposta abusiva (mais de 30% acima do máximo justo) é recusada, o que **protege o cidadão**.
-3. **Negociação de valor:** cliente e prestador podem propor outro valor, com um comentário opcional. Quem recebe a proposta **aceita**, **recusa** ou manda uma **contraproposta**. Se ninguém aceitar, continua valendo o valor atual, e nenhuma proposta pode passar do preço justo.
+2. O valor é comparado com a **faixa de referência** calculada pela triagem da API Java. A faixa **não é um teto**, porque um serviço pode ter particularidades que justifiquem um valor maior. Mas, **acima da faixa, quem propõe precisa explicar o motivo** (observação ou comentário), e o orçamento aparece marcado como `Acima` para o morador. Isso **protege o cidadão** sem engessar o prestador.
+3. **Negociação de valor:** cliente e prestador podem propor outro valor, com um comentário opcional. Quem recebe a proposta **aceita**, **recusa** ou manda uma **contraproposta**. Se ninguém aceitar, continua valendo o valor atual. Proposta acima da faixa de referência exige comentário explicando o motivo.
 4. O **cliente** compara as propostas e **aceita uma**, o que gera a **contratação** com data agendada. As outras propostas são recusadas automaticamente.
 5. O prestador inicia e conclui o serviço. Cliente e prestador podem reagendar ou cancelar.
 
-**Valor para o cidadão:** quem contrata não paga acima do preço justo e não fica com duas contratações (e duas cobranças) por causa de internet instável. O prestador ganha um fluxo profissional de proposta, aceite e agenda.
+**Valor para o cidadão:** quem contrata sabe se o preço está dentro da referência (e, se não estiver, por quê) e não fica com duas contratações (e duas cobranças) por causa de internet instável. O prestador ganha um fluxo profissional de proposta, aceite e agenda.
 
 **ODS:** 10 (redução das desigualdades) e 11 (cidades e comunidades sustentáveis).
 
@@ -55,7 +55,7 @@ flowchart LR
 
     subgraph JAVA["API Java (Spring Boot)"]
         LOGIN["/auth/login<br/>emite JWT"]
-        SOL["/api/solicitacoes<br/>triagem com IA + preco justo"]
+        SOL["/api/solicitacoes<br/>triagem com IA + faixa de referencia"]
     end
 
     subgraph NET["Contratacoes API (.NET 8 Minimal API)"]
@@ -79,7 +79,7 @@ flowchart LR
 ```
 
 - **Login único:** o app faz login uma vez na API Java e usa o **mesmo token** nas duas APIs.
-- **Integração:** o `SolicitacaoJavaClient` consulta `GET /api/solicitacoes/{id}` na API Java **repassando o token do próprio usuário**. Assim a API Java aplica as mesmas regras de acesso, e o .NET recebe o status do pedido, o cliente e o preço justo.
+- **Integração:** o `SolicitacaoJavaClient` consulta `GET /api/solicitacoes/{id}` na API Java **repassando o token do próprio usuário**. Assim a API Java aplica as mesmas regras de acesso, e o .NET recebe o status do pedido, o cliente e a faixa de preço de referência.
 - **Funciona sozinha:** com `JavaApi__Habilitada=false` a API roda sem o Java (útil no deploy da DevOps). Nesse modo o `clienteId` é informado no corpo do orçamento.
 
 ---
@@ -99,6 +99,8 @@ erDiagram
         nvarchar PrestadorEmail
         decimal Valor "valor vigente"
         decimal ValorInicial "valor enviado pelo prestador"
+        decimal ReferenciaMinima "faixa da triagem"
+        decimal ReferenciaMaxima "faixa da triagem"
         int PrazoDias
         nvarchar Observacao
         nvarchar Status "Pendente, Aceito, Recusado"
@@ -184,7 +186,7 @@ stateDiagram-v2
 | 03 | **Idempotência** em requisições repetidas | `IdempotenciaFilter` + tabela `RegistrosIdempotencia` ([seção 5](#5-idempotência)) |
 | 04 | **Rate limiting** com HTTP **429** | `RateLimitingExtensions`: global por IP + escrita por usuário ([seção 6](#6-rate-limiting)) |
 | 05 | **JWT** com autenticação e controle de acesso + **Health checks** | `AutenticacaoExtensions` (políticas por papel), `/health`, `/health/live`, `/health/ready` |
-| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **41 testes** ([seção 11](#11-testes-xunit--postman)) |
+| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **46 testes** ([seção 11](#11-testes-xunit--postman)) |
 | | EF Core | `ContratacoesDbContext` (SQLite local / SQL Server na Azure) |
 
 **Sem credenciais no código:** o segredo do JWT e a connection string vêm de **variáveis de ambiente**. O `appsettings.json` não tem senha nem segredo.
@@ -320,7 +322,6 @@ docker run -p 5090:8080 -e Jwt__Secret="..." -e JavaApi__BaseUrl="http://host.do
 | `ConnectionStrings__Default` | `Data Source=contratacoes.db` | Connection string do banco |
 | `JavaApi__Habilitada` | `true` | Liga a validação com a API Java |
 | `JavaApi__BaseUrl` | `http://localhost:8080` | Endereço da API Java |
-| `JavaApi__ToleranciaPrecoJusto` | `0.30` | Quanto o orçamento pode passar do preço justo máximo |
 | `RateLimiting__GlobalPorMinuto` | `100` | Limite global por IP |
 | `RateLimiting__EscritaPorMinuto` | `10` | Limite de escrita por usuário |
 
@@ -332,13 +333,13 @@ Todos exigem `Authorization: Bearer <token>`. As listagens são paginadas (`?pag
 
 | Método | Rota | Papel | Idempotente | Descrição |
 |---|---|---|---|---|
-| POST | `/api/orcamentos` | PRESTADOR | ✅ | Envia orçamento (valida pedido aberto e preço justo) |
+| POST | `/api/orcamentos` | PRESTADOR | ✅ | Envia orçamento (valida pedido aberto; acima da faixa de referência exige observação explicando) |
 | GET | `/api/orcamentos?solicitacaoId=` | logado | | Lista (cliente: dos seus pedidos; prestador: os seus; admin: todos) |
 | GET | `/api/orcamentos/{id}` | dono | | Detalhe |
 | PUT | `/api/orcamentos/{id}` | PRESTADOR dono | | Edita orçamento pendente |
 | DELETE | `/api/orcamentos/{id}` | PRESTADOR dono | | Retira orçamento pendente |
 | GET | `/api/orcamentos/{id}/propostas` | participante | | Histórico da negociação de valor |
-| POST | `/api/orcamentos/{id}/propostas` | cliente ou prestador do orçamento | ✅ | Propõe outro valor com comentário opcional (contraproposta substitui a pendente; respeita o preço justo) |
+| POST | `/api/orcamentos/{id}/propostas` | cliente ou prestador do orçamento | ✅ | Propõe outro valor com comentário opcional (contraproposta substitui a pendente; acima da faixa de referência exige comentário) |
 | PATCH | `/api/orcamentos/{id}/propostas/{propostaId}` | a outra parte | | `{"aceita": true}` muda o valor do orçamento; `false` mantém o valor atual |
 | POST | `/api/contratacoes` | CLIENTE dono | ✅ | Aceita o orçamento e agenda a data |
 | GET | `/api/contratacoes?status=` | logado | | Lista, ordenada pela data agendada |
@@ -358,7 +359,7 @@ Todos exigem `Authorization: Bearer <token>`. As listagens são paginadas (`?pag
 | 403 | Papel sem permissão ou recurso de outro usuário |
 | 404 | Orçamento, contratação ou pedido inexistente |
 | 409 | Mesma `Idempotency-Key` ainda em processamento |
-| 422 | Regra de negócio (acima do preço justo, pedido fechado, transição inválida, chave reutilizada) |
+| 422 | Regra de negócio (acima da faixa de referência sem justificativa, pedido fechado, transição inválida, chave reutilizada) |
 | 429 | Rate limit |
 | 503 | API Java indisponível ao validar um orçamento |
 
@@ -389,15 +390,15 @@ Location: /api/contratacoes/1
 dotnet test
 ```
 
-**41 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
+**46 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
 
 | Tipo | Classe | O que cobre |
 |---|---|---|
 | Unidade | `OrcamentoTests` | Criação, valores e prazos inválidos, edição só quando pendente, aceite único |
 | Unidade | `ContratacaoTests` | Datas válidas, máquina de estados e reagendamento |
 | Unidade | `PropostaNegociacaoTests` | Aceitar muda o valor, recusar mantém, autor não responde a própria proposta, proposta já respondida, orçamento já aceito |
-| Unidade | `RegrasPrecoJustoTests` | Tolerância de 30% sobre o preço justo |
-| Integração | `EndpointsTests` | 401 sem token e com token falso, 403 por papel e por dono, validação 400, falta do `Idempotency-Key`, replay idempotente, chave reutilizada (422), preço abusivo (422), pedido fechado ou inexistente, fluxo completo, negociação de valor (proposta, contraproposta, recusa, aceite, preço justo e contratação pelo valor combinado), CRUD, paginação e health check |
+| Unidade | `FaixaReferenciaTests` | Posição na faixa (abaixo, dentro, acima) e justificativa obrigatória acima da faixa |
+| Integração | `EndpointsTests` | 401 sem token e com token falso, 403 por papel e por dono, validação 400, falta do `Idempotency-Key`, replay idempotente, chave reutilizada (422), valor acima da faixa sem justificativa (422) e com justificativa (201, marcado `Acima`), pedido fechado ou inexistente, fluxo completo, negociação de valor (proposta, contraproposta, recusa, aceite, faixa de referência e contratação pelo valor combinado), CRUD, paginação e health check |
 | Integração | `RateLimitingTests` | 429 com `Retry-After` |
 
 **Postman:** `postman/Bico-Certo-Contratacoes.postman_collection.json`, com **34 requisições e 44 asserções** (faz o login na API Java e percorre o fluxo inteiro). Com as duas APIs no ar:
@@ -439,7 +440,7 @@ bico-certo-dotnet/
 │   ├── Domain/            entidades, regras e maquina de estados
 │   ├── Data/              DbContext (EF Core) e registro de idempotencia
 │   ├── Contracts/         DTOs (records) com DataAnnotations
-│   ├── Services/          regras de negocio (orcamentos, contratacoes, preco justo)
+│   ├── Services/          regras de negocio (orcamentos, negociacao, contratacoes)
 │   ├── Endpoints/         Minimal APIs agrupadas por recurso
 │   ├── Infrastructure/
 │   │   ├── Autenticacao/  JWT compartilhado com a API Java + politicas por papel

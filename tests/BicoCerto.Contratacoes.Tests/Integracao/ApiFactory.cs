@@ -24,7 +24,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     public const long OutroPrestadorId = 3;
     public const long AdminId = 9;
 
-    /// <summary>Pedido ABERTO do cliente 1 com preço justo máximo de R$ 200.</summary>
+    /// <summary>Pedido ABERTO do cliente 1 com faixa de referência de R$ 70 a R$ 200.</summary>
     public const long SolicitacaoAberta = 10;
 
     /// <summary>Segundo pedido ABERTO do cliente 1 (para testes que não podem dividir o mesmo pedido).</summary>

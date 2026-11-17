@@ -10,7 +10,4 @@ public class JavaApiOptions
     public string BaseUrl { get; set; } = "http://localhost:8080";
 
     public int TimeoutSegundos { get; set; } = 5;
-
-    /// <summary>Quanto o orçamento pode passar do preço máximo justo calculado pela triagem (0.30 = 30%).</summary>
-    public decimal ToleranciaPrecoJusto { get; set; } = 0.30m;
 }

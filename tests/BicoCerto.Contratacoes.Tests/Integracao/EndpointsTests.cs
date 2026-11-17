@@ -79,13 +79,21 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task OrcamentoAcimaDoPrecoJustoRetorna422()
+    public async Task AcimaDaFaixaDeReferenciaExigeJustificativa()
     {
-        var resposta = await PostIdempotente(Prestador(20), "/api/orcamentos",
+        var semMotivo = await PostIdempotente(Prestador(20), "/api/orcamentos",
             new { solicitacaoId = ApiFactory.SolicitacaoAberta, valor = 900, prazoDias = 1 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, semMotivo.StatusCode);
+        Assert.Contains("faixa de referência", await semMotivo.Content.ReadAsStringAsync());
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, resposta.StatusCode);
-        Assert.Contains("preço justo", await resposta.Content.ReadAsStringAsync());
+        // com o motivo explicado, o valor acima da faixa e aceito e sinalizado para o morador
+        var comMotivo = await PostIdempotente(Prestador(20), "/api/orcamentos",
+            new { solicitacaoId = ApiFactory.SolicitacaoAberta, valor = 900, prazoDias = 1,
+                  observacao = "Tubulacao embutida na parede: precisa quebrar e refazer o reboco" });
+        Assert.Equal(HttpStatusCode.Created, comMotivo.StatusCode);
+        var orcamento = (await comMotivo.Content.ReadFromJsonAsync<OrcamentoResponse>())!;
+        Assert.Equal("Acima", orcamento.PosicaoNaFaixa);
+        Assert.Equal(200m, orcamento.ReferenciaMaxima);
     }
 
     [Fact]
@@ -255,9 +263,9 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var intruso = await PostIdempotente(OutroCliente, url, new { valor = 100 });
         Assert.Equal(HttpStatusCode.Forbidden, intruso.StatusCode);
 
-        // contraproposta acima do preco justo e barrada
-        var abusiva = await PostIdempotente(prestador, url, new { valor = 900 });
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, abusiva.StatusCode);
+        // contraproposta acima da faixa de referencia sem explicar o motivo e barrada
+        var semMotivo = await PostIdempotente(prestador, url, new { valor = 900 });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, semMotivo.StatusCode);
 
         // prestador contrapropoe: a proposta do cliente e substituida
         var r2 = await PostIdempotente(prestador, url, new { valor = 160, comentario = "Fecho por 160" });

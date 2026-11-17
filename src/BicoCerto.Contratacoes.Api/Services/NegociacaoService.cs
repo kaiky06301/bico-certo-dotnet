@@ -11,7 +11,7 @@ namespace BicoCerto.Contratacoes.Api.Services;
 /// Negociação de preço de um orçamento entre o cliente e o prestador.
 /// Regras: só os dois participantes negociam; uma nova proposta substitui a que estava em aberto (contraproposta);
 /// só quem recebeu a proposta responde; aceitar muda o valor vigente; recusar ou não responder mantém o valor atual;
-/// nenhuma proposta pode passar do preço justo calculado pela triagem da API Java.
+/// acima da faixa de referência de preço da triagem a proposta é aceita, mas o comentário (justificativa) é obrigatório.
 /// </summary>
 public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcamentos, TimeProvider relogio)
 {
@@ -33,7 +33,8 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
         orcamento.GarantirPendente("negociar");
 
         var valor = req.Valor!.Value;
-        await orcamentos.ValidarSolicitacaoAsync(orcamento.SolicitacaoId, valor, orcamento.ClienteId, token, ct);
+        await orcamentos.ValidarSolicitacaoAsync(orcamento.SolicitacaoId, valor, req.Comentario, "no comentário",
+            orcamento.ClienteId, token, ct);
 
         var proposta = new PropostaNegociacao(orcamento, autor, usuario.Id(), usuario.Nome(), valor, req.Comentario, Agora);
 

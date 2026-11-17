@@ -15,6 +15,8 @@ CREATE TABLE [Orcamentos] (
     [PrestadorEmail] nvarchar(150) NOT NULL,
     [Valor] decimal(10,2) NOT NULL,
     [ValorInicial] decimal(10,2) NOT NULL,
+    [ReferenciaMinima] decimal(10,2) NOT NULL,
+    [ReferenciaMaxima] decimal(10,2) NOT NULL,
     [PrazoDias] int NOT NULL,
     [Observacao] nvarchar(500) NULL,
     [Status] nvarchar(20) NOT NULL,

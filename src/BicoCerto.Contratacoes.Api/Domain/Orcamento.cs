@@ -22,6 +22,10 @@ public class Orcamento
     /// <summary>Valor que o prestador enviou no orçamento (antes de qualquer negociação).</summary>
     public decimal ValorInicial { get; private set; }
 
+    /// <summary>Faixa de referência de preço da triagem (API Java) no momento do orçamento; 0 quando indisponível.</summary>
+    public decimal ReferenciaMinima { get; private set; }
+    public decimal ReferenciaMaxima { get; private set; }
+
     public int PrazoDias { get; private set; }
     public string? Observacao { get; private set; }
     public StatusOrcamento Status { get; private set; } = StatusOrcamento.Pendente;
@@ -58,6 +62,12 @@ public class Orcamento
         PrazoDias = prazoDias;
         Observacao = observacao;
         AtualizadoEm = DateTime.UtcNow;
+    }
+
+    public void DefinirFaixaReferencia(decimal minima, decimal maxima)
+    {
+        ReferenciaMinima = minima;
+        ReferenciaMaxima = maxima;
     }
 
     /// <summary>Uma proposta da negociação foi aceita: o valor combinado passa a ser o vigente.</summary>
