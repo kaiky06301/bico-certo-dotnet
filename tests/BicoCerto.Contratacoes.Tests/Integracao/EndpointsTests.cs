@@ -174,6 +174,10 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         // o orcamento concorrente foi recusado automaticamente
         var recusado = await Prestador(41).GetFromJsonAsync<OrcamentoResponse>($"/api/orcamentos/{concorrente.Id}");
         Assert.Equal("Recusado", recusado!.Status);
+        var listaDoConcorrente = await Prestador(41).GetFromJsonAsync<PaginaResponse<OrcamentoResponse>>("/api/orcamentos");
+        Assert.True(listaDoConcorrente!.Conteudo.Single(o => o.Id == concorrente.Id).ClienteContratouOutro);
+        var listaDoEscolhido = await Prestador(40).GetFromJsonAsync<PaginaResponse<OrcamentoResponse>>("/api/orcamentos");
+        Assert.False(listaDoEscolhido!.Conteudo.Single(o => o.Id == escolhido.Id).ClienteContratouOutro);
 
         // so o prestador conclui
         var clienteConclui = await Cliente.PatchAsJsonAsync($"/api/contratacoes/{contratacao.Id}/status",

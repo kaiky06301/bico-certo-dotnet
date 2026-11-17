@@ -39,18 +39,19 @@ public record OrcamentoUpdateRequest(
 /// Valor = valor vigente (muda quando uma proposta da negociação é aceita). ValorInicial = o que o prestador enviou.
 /// PosicaoNaFaixa = Abaixo, Dentro ou Acima da faixa de referência da triagem (SemReferencia se indisponível).
 /// PropostaPendente = proposta da negociação esperando resposta (null se não houver).
+/// ClienteContratouOutro = o pedido já tem contratação ativa com outro prestador (para o prestador entender o "Recusado").
 /// </summary>
 public record OrcamentoResponse(
     long Id, long SolicitacaoId, long ClienteId, long PrestadorId, string PrestadorNome, string PrestadorEmail,
     decimal Valor, decimal ValorInicial, decimal ReferenciaMinima, decimal ReferenciaMaxima, string PosicaoNaFaixa,
     int PrazoDias, string? Observacao, string Status, DateTime CriadoEm, DateTime AtualizadoEm,
-    PropostaResponse? PropostaPendente = null)
+    PropostaResponse? PropostaPendente = null, bool ClienteContratouOutro = false)
 {
-    public static OrcamentoResponse De(Orcamento o, PropostaNegociacao? pendente = null) => new(o.Id, o.SolicitacaoId,
+    public static OrcamentoResponse De(Orcamento o, PropostaNegociacao? pendente = null, bool contratouOutro = false) => new(o.Id, o.SolicitacaoId,
         o.ClienteId, o.PrestadorId, o.PrestadorNome, o.PrestadorEmail, o.Valor, o.ValorInicial, o.ReferenciaMinima,
         o.ReferenciaMaxima, FaixaReferencia.Posicao(o.Valor, o.ReferenciaMinima, o.ReferenciaMaxima), o.PrazoDias,
         o.Observacao, o.Status.ToString(), o.CriadoEm, o.AtualizadoEm,
-        pendente is null ? null : PropostaResponse.De(pendente));
+        pendente is null ? null : PropostaResponse.De(pendente), contratouOutro);
 }
 
 /// <summary>Nova proposta de valor na negociação (cliente ou prestador), com comentário opcional.</summary>

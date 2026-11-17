@@ -80,6 +80,7 @@ flowchart LR
 
 - **Login único:** o app faz login uma vez na API Java e usa o **mesmo token** nas duas APIs.
 - **Integração:** o `SolicitacaoJavaClient` consulta `GET /api/solicitacoes/{id}` na API Java **repassando o token do próprio usuário**. Assim a API Java aplica as mesmas regras de acesso, e o .NET recebe o status do pedido, o cliente e a faixa de preço de referência.
+- **Orçamento recusado ou outro contratado:** na listagem, `clienteContratouOutro` indica que o pedido já tem contratação ativa com outro prestador, para o app do prestador mostrar "Contratado outro prestador" em vez de só "Recusado".
 - **Avisos para a outra parte:** depois de cada evento deste módulo (orçamento recebido, editado ou recusado, contraproposta, proposta aceita ou recusada, contratação, reagendamento, início do serviço, cancelamento pelo prestador), o `AvisoService` grava um aviso na API Java com `POST /api/solicitacoes/{id}/avisos`, também com o token do usuário. Os avisos aparecem na tela de Avisos do app com tipo, valor e atalho para a proposta. É "melhor esforço": se a API Java falhar, a operação principal continua valendo e o erro vai para o log.
 - **Funciona sozinha:** com `JavaApi__Habilitada=false` a API roda sem o Java (útil no deploy da DevOps). Nesse modo o `clienteId` é informado no corpo do orçamento.
 

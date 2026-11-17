@@ -52,7 +52,12 @@ public class OrcamentoService(
         var itens = await consulta.OrderByDescending(o => o.CriadoEm).ThenByDescending(o => o.Id)
             .Skip(p * t).Take(t).ToListAsync(ct);
         var pendentes = await PropostasPendentesAsync(itens.Select(o => o.Id).ToList(), ct);
-        var respostas = itens.Select(o => OrcamentoResponse.De(o, pendentes.GetValueOrDefault(o.Id))).ToList();
+        var pedidos = itens.Select(o => o.SolicitacaoId).Distinct().ToList();
+        var contratados = await db.Contratacoes
+            .Where(c => pedidos.Contains(c.SolicitacaoId) && c.Status != StatusContratacao.Cancelada)
+            .Select(c => new { c.SolicitacaoId, c.OrcamentoId }).ToListAsync(ct);
+        var respostas = itens.Select(o => OrcamentoResponse.De(o, pendentes.GetValueOrDefault(o.Id),
+            contratados.Any(c => c.SolicitacaoId == o.SolicitacaoId && c.OrcamentoId != o.Id))).ToList();
         return PaginaResponse<OrcamentoResponse>.De(respostas, p, t, total);
     }
 
