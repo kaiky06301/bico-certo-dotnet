@@ -12,9 +12,14 @@ public record CategoriaJava(long Id, string Nome);
 
 public record ContatoJava(long Id, string Nome);
 
+/// <summary>Aviso para a outra parte do pedido (gravado em POST /api/solicitacoes/{id}/avisos na API Java).</summary>
+public record AvisoJava(string Tipo, long DestinatarioId, string Mensagem, decimal? Valor = null, long? OrcamentoId = null);
+
 public interface ISolicitacaoJavaClient
 {
     Task<SolicitacaoJava> ObterAsync(long solicitacaoId, string tokenBearer, CancellationToken ct);
+
+    Task AvisarAsync(long solicitacaoId, AvisoJava aviso, string tokenBearer, CancellationToken ct);
 }
 
 /// <summary>
@@ -23,6 +28,17 @@ public interface ISolicitacaoJavaClient
 /// </summary>
 public class SolicitacaoJavaClient(HttpClient http) : ISolicitacaoJavaClient
 {
+    public async Task AvisarAsync(long solicitacaoId, AvisoJava aviso, string tokenBearer, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/solicitacoes/{solicitacaoId}/avisos")
+        {
+            Content = JsonContent.Create(aviso)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenBearer);
+        using var response = await http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<SolicitacaoJava> ObterAsync(long solicitacaoId, string tokenBearer, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/solicitacoes/{solicitacaoId}");

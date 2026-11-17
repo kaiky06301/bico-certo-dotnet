@@ -13,7 +13,8 @@ namespace BicoCerto.Contratacoes.Api.Services;
 /// só quem recebeu a proposta responde; aceitar muda o valor vigente; recusar ou não responder mantém o valor atual;
 /// acima da faixa de referência de preço da triagem a proposta é aceita, mas o comentário (justificativa) é obrigatório.
 /// </summary>
-public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcamentos, TimeProvider relogio)
+public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcamentos, TimeProvider relogio,
+    AvisoService avisos)
 {
     private DateTime Agora => relogio.GetUtcNow().UtcDateTime;
 
@@ -45,6 +46,12 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
 
         db.Propostas.Add(proposta);
         await db.SaveChangesAsync(ct);
+        var paraQuem = autor == AutorProposta.Cliente ? orcamento.PrestadorId : orcamento.ClienteId;
+        var quem = autor == AutorProposta.Cliente ? "O cliente" : orcamento.PrestadorNome;
+        await avisos.AvisarAsync(orcamento.SolicitacaoId, paraQuem, TiposAviso.Negociacao,
+            $"{quem} propôs {AvisoService.Moeda(valor)} no pedido #{orcamento.SolicitacaoId}"
+            + (string.IsNullOrWhiteSpace(req.Comentario) ? "." : $": \"{req.Comentario.Trim()}\""),
+            valor, orcamento.Id);
         return PropostaResponse.De(proposta);
     }
 
@@ -60,6 +67,12 @@ public class NegociacaoService(ContratacoesDbContext db, OrcamentoService orcame
 
         proposta.Responder(aceita, quemResponde, orcamento, Agora);
         await db.SaveChangesAsync(ct);
+        var quem = quemResponde == AutorProposta.Cliente ? "O cliente" : orcamento.PrestadorNome;
+        await avisos.AvisarAsync(orcamento.SolicitacaoId, proposta.AutorId, TiposAviso.Negociacao,
+            aceita
+                ? $"{quem} aceitou a sua proposta de {AvisoService.Moeda(proposta.Valor)}. Esse passa a ser o valor do orçamento."
+                : $"{quem} recusou a sua proposta de {AvisoService.Moeda(proposta.Valor)}. Continua valendo {AvisoService.Moeda(orcamento.Valor)}.",
+            proposta.Valor, orcamento.Id);
         return PropostaResponse.De(proposta);
     }
 

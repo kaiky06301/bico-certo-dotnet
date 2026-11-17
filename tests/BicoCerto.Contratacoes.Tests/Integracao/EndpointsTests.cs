@@ -318,6 +318,24 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task AvisaAOutraParteAoReceberOrcamentoENegociar()
+    {
+        var orcamento = await CriarOrcamento(92, 175m, ApiFactory.SolicitacaoNegociacao);
+        Assert.Contains(ApiFactory.Avisos, a => a.Aviso.Tipo == "ORCAMENTO" && a.Aviso.OrcamentoId == orcamento.Id
+                                               && a.Aviso.DestinatarioId == ApiFactory.ClienteId
+                                               && a.Aviso.Mensagem.Contains("R$ 175,00")
+                                               && a.Aviso.Mensagem.Contains("encanamento"));
+
+        await PostIdempotente(Cliente, $"/api/orcamentos/{orcamento.Id}/propostas", new { valor = 150, comentario = "Fecha?" });
+        Assert.Contains(ApiFactory.Avisos, a => a.Aviso.Tipo == "NEGOCIACAO" && a.Aviso.OrcamentoId == orcamento.Id
+                                               && a.Aviso.DestinatarioId == 92 && a.Aviso.Valor == 150m);
+
+        await Cliente.PatchAsync($"/api/orcamentos/{orcamento.Id}/recusa", null);
+        Assert.Contains(ApiFactory.Avisos, a => a.Aviso.Tipo == "ORCAMENTO" && a.Aviso.DestinatarioId == 92
+                                               && a.Aviso.Mensagem.Contains("recusou"));
+    }
+
+    [Fact]
     public async Task HealthCheckMostraApiBancoEServicoExterno()
     {
         var resposta = await factory.CreateClient().GetAsync("/health");

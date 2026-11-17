@@ -80,6 +80,7 @@ flowchart LR
 
 - **Login único:** o app faz login uma vez na API Java e usa o **mesmo token** nas duas APIs.
 - **Integração:** o `SolicitacaoJavaClient` consulta `GET /api/solicitacoes/{id}` na API Java **repassando o token do próprio usuário**. Assim a API Java aplica as mesmas regras de acesso, e o .NET recebe o status do pedido, o cliente e a faixa de preço de referência.
+- **Avisos para a outra parte:** depois de cada evento deste módulo (orçamento recebido, editado ou recusado, contraproposta, proposta aceita ou recusada, contratação, reagendamento, início do serviço, cancelamento pelo prestador), o `AvisoService` grava um aviso na API Java com `POST /api/solicitacoes/{id}/avisos`, também com o token do usuário. Os avisos aparecem na tela de Avisos do app com tipo, valor e atalho para a proposta. É "melhor esforço": se a API Java falhar, a operação principal continua valendo e o erro vai para o log.
 - **Funciona sozinha:** com `JavaApi__Habilitada=false` a API roda sem o Java (útil no deploy da DevOps). Nesse modo o `clienteId` é informado no corpo do orçamento.
 
 ---
@@ -186,7 +187,7 @@ stateDiagram-v2
 | 03 | **Idempotência** em requisições repetidas | `IdempotenciaFilter` + tabela `RegistrosIdempotencia` ([seção 5](#5-idempotência)) |
 | 04 | **Rate limiting** com HTTP **429** | `RateLimitingExtensions`: global por IP + escrita por usuário ([seção 6](#6-rate-limiting)) |
 | 05 | **JWT** com autenticação e controle de acesso + **Health checks** | `AutenticacaoExtensions` (políticas por papel), `/health`, `/health/live`, `/health/ready` |
-| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **47 testes** ([seção 11](#11-testes-xunit--postman)) |
+| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **48 testes** ([seção 11](#11-testes-xunit--postman)) |
 | | EF Core | `ContratacoesDbContext` (SQLite local / SQL Server na Azure) |
 
 **Sem credenciais no código:** o segredo do JWT e a connection string vêm de **variáveis de ambiente**. O `appsettings.json` não tem senha nem segredo.
@@ -391,7 +392,7 @@ Location: /api/contratacoes/1
 dotnet test
 ```
 
-**47 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
+**48 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
 
 | Tipo | Classe | O que cobre |
 |---|---|---|

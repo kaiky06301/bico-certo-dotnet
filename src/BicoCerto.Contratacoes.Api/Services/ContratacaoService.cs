@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BicoCerto.Contratacoes.Api.Services;
 
-public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio)
+public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio, AvisoService avisos)
 {
     private DateTime Agora => relogio.GetUtcNow().UtcDateTime;
 
@@ -48,6 +48,14 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio)
         {
             throw new RegraNegocioException("Este orçamento já foi contratado.");
         }
+        await avisos.AvisarAsync(contratacao.SolicitacaoId, contratacao.PrestadorId, TiposAviso.Contratacao,
+            $"{usuario.Nome()} aceitou o seu orçamento de {AvisoService.Moeda(contratacao.ValorAcordado)}. "
+            + $"Serviço agendado para {AvisoService.DataHora(contratacao.DataAgendada)}.",
+            contratacao.ValorAcordado, orcamento.Id);
+        foreach (var outro in concorrentes)
+            await avisos.AvisarAsync(outro.SolicitacaoId, outro.PrestadorId, TiposAviso.Orcamento,
+                $"O cliente escolheu outro prestador para o pedido #{outro.SolicitacaoId}. Obrigado pelo orçamento!",
+                outro.Valor, outro.Id);
         return ContratacaoResponse.De(contratacao);
     }
 
@@ -78,6 +86,9 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio)
         var contratacao = await ObterDeParticipanteAsync(usuario, id, ct);
         contratacao.Reagendar(ParaUtc(req.DataAgendada!.Value), Agora);
         await db.SaveChangesAsync(ct);
+        var outraParte = usuario.Id() == contratacao.ClienteId ? contratacao.PrestadorId : contratacao.ClienteId;
+        await avisos.AvisarAsync(contratacao.SolicitacaoId, outraParte, TiposAviso.Agendamento,
+            $"O serviço do pedido #{contratacao.SolicitacaoId} foi reagendado para {AvisoService.DataHora(contratacao.DataAgendada)}.");
         return ContratacaoResponse.De(contratacao);
     }
 
@@ -94,6 +105,14 @@ public class ContratacaoService(ContratacoesDbContext db, TimeProvider relogio)
         if (novo == StatusContratacao.Cancelada)
             await ReabrirOrcamentosAsync(contratacao.SolicitacaoId, ct);
         await db.SaveChangesAsync(ct);
+        // conclusão e cancelamento pelo cliente já geram aviso na API Java (eventos do pedido)
+        if (novo == StatusContratacao.EmAndamento)
+            await avisos.AvisarAsync(contratacao.SolicitacaoId, contratacao.ClienteId, TiposAviso.Servico,
+                $"{usuario.Nome()} iniciou o serviço do pedido #{contratacao.SolicitacaoId}.");
+        else if (novo == StatusContratacao.Cancelada && usuario.Id() == contratacao.PrestadorId)
+            await avisos.AvisarAsync(contratacao.SolicitacaoId, contratacao.ClienteId, TiposAviso.Cancelamento,
+                $"{usuario.Nome()} cancelou o atendimento do pedido #{contratacao.SolicitacaoId}. "
+                + "Os outros orçamentos voltaram a ficar disponíveis.");
         return ContratacaoResponse.De(contratacao);
     }
 

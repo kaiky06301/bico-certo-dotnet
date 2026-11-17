@@ -87,8 +87,17 @@ public class ApiFactory : WebApplicationFactory<Program>
         _conexao.Dispose();
     }
 
+    /// <summary>Avisos que a API teria mandado para a API Java (para conferir nos testes).</summary>
+    public static readonly System.Collections.Concurrent.ConcurrentQueue<(long Solicitacao, AvisoJava Aviso)> Avisos = new();
+
     private sealed class JavaClientFalso : ISolicitacaoJavaClient
     {
+        public Task AvisarAsync(long solicitacaoId, AvisoJava aviso, string tokenBearer, CancellationToken ct)
+        {
+            Avisos.Enqueue((solicitacaoId, aviso));
+            return Task.CompletedTask;
+        }
+
         public Task<SolicitacaoJava> ObterAsync(long solicitacaoId, string tokenBearer, CancellationToken ct) =>
             solicitacaoId switch
             {

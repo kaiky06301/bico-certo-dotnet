@@ -12,7 +12,8 @@ namespace BicoCerto.Contratacoes.Api.Services;
 public class OrcamentoService(
     ContratacoesDbContext db,
     ISolicitacaoJavaClient javaClient,
-    IOptions<JavaApiOptions> javaOptions)
+    IOptions<JavaApiOptions> javaOptions,
+    AvisoService avisos)
 {
     private JavaApiOptions Java => javaOptions.Value;
 
@@ -33,6 +34,10 @@ public class OrcamentoService(
         orcamento.DefinirFaixaReferencia(solicitacao.ReferenciaMinima, solicitacao.ReferenciaMaxima);
         db.Orcamentos.Add(orcamento);
         await db.SaveChangesAsync(ct);
+        await avisos.AvisarAsync(solicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
+            $"{orcamento.PrestadorNome} enviou um orçamento de {AvisoService.Moeda(orcamento.Valor)} para o seu pedido"
+            + (solicitacao.Categoria is null ? "." : $" de {solicitacao.Categoria.ToLowerInvariant()}."),
+            orcamento.Valor, orcamento.Id);
         return OrcamentoResponse.De(orcamento);
     }
 
@@ -83,6 +88,9 @@ public class OrcamentoService(
             .ToListAsync(ct);
         abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
         await db.SaveChangesAsync(ct);
+        await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.ClienteId, TiposAviso.Orcamento,
+            $"{orcamento.PrestadorNome} atualizou o orçamento para {AvisoService.Moeda(orcamento.Valor)}.",
+            orcamento.Valor, orcamento.Id);
         return OrcamentoResponse.De(orcamento);
     }
 
@@ -99,6 +107,9 @@ public class OrcamentoService(
             .ToListAsync(ct);
         abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
         await db.SaveChangesAsync(ct);
+        await avisos.AvisarAsync(orcamento.SolicitacaoId, orcamento.PrestadorId, TiposAviso.Orcamento,
+            $"O cliente recusou o seu orçamento de {AvisoService.Moeda(orcamento.Valor)} para o pedido #{orcamento.SolicitacaoId}.",
+            orcamento.Valor, orcamento.Id);
         return OrcamentoResponse.De(orcamento);
     }
 
@@ -122,7 +133,7 @@ public class OrcamentoService(
         {
             var cliente = clienteInformado ?? throw new RegraNegocioException(
                 "Integração com a API Java desligada: informe o clienteId da solicitação.");
-            return new SolicitacaoValidada(cliente, 0m, 0m);
+            return new SolicitacaoValidada(cliente, 0m, 0m, null);
         }
 
         var solicitacao = await javaClient.ObterAsync(solicitacaoId, token, ct);
@@ -130,7 +141,8 @@ public class OrcamentoService(
             throw new RegraNegocioException($"A solicitação {solicitacaoId} não está aberta para orçamentos.");
 
         FaixaReferencia.ExigirJustificativaSeAcima(valor, solicitacao.PrecoMaximo, justificativa, ondeExplicar);
-        return new SolicitacaoValidada(solicitacao.Cliente.Id, solicitacao.PrecoMinimo, solicitacao.PrecoMaximo);
+        return new SolicitacaoValidada(solicitacao.Cliente.Id, solicitacao.PrecoMinimo, solicitacao.PrecoMaximo,
+            solicitacao.Categoria?.Nome);
     }
 
     private IQueryable<Orcamento> DoUsuario(ClaimsPrincipal usuario)
@@ -164,4 +176,5 @@ public class OrcamentoService(
     }
 }
 
-public record SolicitacaoValidada(long ClienteId, decimal ReferenciaMinima, decimal ReferenciaMaxima);
+public record SolicitacaoValidada(long ClienteId, decimal ReferenciaMinima, decimal ReferenciaMaxima,
+                                  string? Categoria);

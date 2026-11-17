@@ -31,6 +31,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<OrcamentoService>();
 builder.Services.AddScoped<ContratacaoService>();
 builder.Services.AddScoped<NegociacaoService>();
+builder.Services.AddScoped<AvisoService>();
+builder.Services.AddHttpContextAccessor();
 
 // Integracao com a API Java (nucleo do Bico Certo)
 builder.Services.Configure<JavaApiOptions>(builder.Configuration.GetSection(JavaApiOptions.Secao));
