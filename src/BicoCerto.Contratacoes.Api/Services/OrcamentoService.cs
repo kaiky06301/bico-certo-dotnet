@@ -86,6 +86,22 @@ public class OrcamentoService(
         return OrcamentoResponse.De(orcamento);
     }
 
+    /// <summary>O cliente dono do pedido recusa um orçamento pendente (a negociação em aberto deixa de valer).</summary>
+    public async Task<OrcamentoResponse> RecusarAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
+    {
+        var orcamento = await db.Orcamentos.FindAsync([id], ct)
+                        ?? throw new RecursoNaoEncontradoException($"Orçamento {id} não encontrado.");
+        if (orcamento.ClienteId != usuario.Id())
+            throw new AcessoNegadoException("Só o cliente dono do pedido pode recusar este orçamento.");
+        orcamento.GarantirPendente("recusar");
+        orcamento.Recusar();
+        var abertas = await db.Propostas.Where(p => p.OrcamentoId == id && p.Status == StatusProposta.Pendente)
+            .ToListAsync(ct);
+        abertas.ForEach(p => p.Substituir(DateTime.UtcNow));
+        await db.SaveChangesAsync(ct);
+        return OrcamentoResponse.De(orcamento);
+    }
+
     /// <summary>O prestador retira a proposta enquanto ela ainda não foi aceita.</summary>
     public async Task ExcluirAsync(ClaimsPrincipal usuario, long id, CancellationToken ct)
     {

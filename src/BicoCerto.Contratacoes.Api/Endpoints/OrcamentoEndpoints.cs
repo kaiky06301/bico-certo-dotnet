@@ -58,6 +58,15 @@ public static class OrcamentoEndpoints
             .RequireAuthorization(AutenticacaoExtensions.PoliticaPrestador)
             .WithSummary("Prestador retira (exclui) um orçamento pendente");
 
+        grupo.MapPatch("/{id:long}/recusa", async (long id, HttpContext http, OrcamentoService service,
+                    CancellationToken ct) =>
+                TypedResults.Ok(await service.RecusarAsync(http.User, id, ct)))
+            .RequireAuthorization(AutenticacaoExtensions.PoliticaCliente)
+            .RequireRateLimiting(RateLimitingExtensions.PoliticaEscrita)
+            .WithSummary("Cliente recusa um orçamento pendente do seu pedido")
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
         // ---------- negociação de valor (cliente <-> prestador) ----------
 
         grupo.MapGet("/{id:long}/propostas", async (long id, HttpContext http, NegociacaoService service,

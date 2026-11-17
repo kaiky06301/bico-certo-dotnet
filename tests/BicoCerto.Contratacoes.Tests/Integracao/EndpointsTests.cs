@@ -300,6 +300,24 @@ public class EndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task ClienteRecusaOrcamentoPendente()
+    {
+        var orcamento = await CriarOrcamento(91, 150m, ApiFactory.SolicitacaoNegociacao);
+        var url = $"/api/orcamentos/{orcamento.Id}/recusa";
+
+        // so o cliente dono recusa
+        Assert.Equal(HttpStatusCode.Forbidden, (await OutroCliente.PatchAsync(url, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Prestador(91).PatchAsync(url, null)).StatusCode);
+
+        var recusa = await Cliente.PatchAsync(url, null);
+        Assert.Equal(HttpStatusCode.OK, recusa.StatusCode);
+        Assert.Equal("Recusado", (await recusa.Content.ReadFromJsonAsync<OrcamentoResponse>())!.Status);
+
+        // recusado nao pode ser recusado de novo nem aceito
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Cliente.PatchAsync(url, null)).StatusCode);
+    }
+
+    [Fact]
     public async Task HealthCheckMostraApiBancoEServicoExterno()
     {
         var resposta = await factory.CreateClient().GetAsync("/health");

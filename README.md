@@ -186,7 +186,7 @@ stateDiagram-v2
 | 03 | **Idempotência** em requisições repetidas | `IdempotenciaFilter` + tabela `RegistrosIdempotencia` ([seção 5](#5-idempotência)) |
 | 04 | **Rate limiting** com HTTP **429** | `RateLimitingExtensions`: global por IP + escrita por usuário ([seção 6](#6-rate-limiting)) |
 | 05 | **JWT** com autenticação e controle de acesso + **Health checks** | `AutenticacaoExtensions` (políticas por papel), `/health`, `/health/live`, `/health/ready` |
-| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **46 testes** ([seção 11](#11-testes-xunit--postman)) |
+| 06 | Testes **unitários** e de **integração** com **xUnit** | `tests/` com **47 testes** ([seção 11](#11-testes-xunit--postman)) |
 | | EF Core | `ContratacoesDbContext` (SQLite local / SQL Server na Azure) |
 
 **Sem credenciais no código:** o segredo do JWT e a connection string vêm de **variáveis de ambiente**. O `appsettings.json` não tem senha nem segredo.
@@ -338,6 +338,7 @@ Todos exigem `Authorization: Bearer <token>`. As listagens são paginadas (`?pag
 | GET | `/api/orcamentos/{id}` | dono | | Detalhe |
 | PUT | `/api/orcamentos/{id}` | PRESTADOR dono | | Edita orçamento pendente |
 | DELETE | `/api/orcamentos/{id}` | PRESTADOR dono | | Retira orçamento pendente |
+| PATCH | `/api/orcamentos/{id}/recusa` | CLIENTE dono | | Recusa um orçamento pendente (a negociação em aberto deixa de valer) |
 | GET | `/api/orcamentos/{id}/propostas` | participante | | Histórico da negociação de valor |
 | POST | `/api/orcamentos/{id}/propostas` | cliente ou prestador do orçamento | ✅ | Propõe outro valor com comentário opcional (contraproposta substitui a pendente; acima da faixa de referência exige comentário) |
 | PATCH | `/api/orcamentos/{id}/propostas/{propostaId}` | a outra parte | | `{"aceita": true}` muda o valor do orçamento; `false` mantém o valor atual |
@@ -390,7 +391,7 @@ Location: /api/contratacoes/1
 dotnet test
 ```
 
-**46 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
+**47 testes, todos passando.** Os de integração usam `WebApplicationFactory`, SQLite em memória e uma API Java simulada.
 
 | Tipo | Classe | O que cobre |
 |---|---|---|
