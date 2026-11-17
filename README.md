@@ -407,11 +407,11 @@ dotnet test
 | Integração | `EndpointsTests` | 401 sem token e com token falso, 403 por papel e por dono, validação 400, falta do `Idempotency-Key`, replay idempotente, chave reutilizada (422), valor acima da faixa sem justificativa (422) e com justificativa (201, marcado `Acima`), pedido fechado ou inexistente, fluxo completo, negociação de valor (proposta, contraproposta, recusa, aceite, faixa de referência e contratação pelo valor combinado), CRUD, paginação e health check |
 | Integração | `RateLimitingTests` | 429 com `Retry-After` |
 
-**Postman:** `postman/Bico-Certo-Contratacoes.postman_collection.json`, com **34 requisições e 44 asserções** (faz o login na API Java e percorre o fluxo inteiro). Com as duas APIs no ar:
+**Postman:** `postman/Bico-Certo-Contratacoes.postman_collection.json`, com **51 requisições e 67 asserções** (faz o login na API Java e percorre o fluxo inteiro: validade e itens inclusos do orçamento, negociação, recusa pelo cliente, retirada pelo prestador, conflito de horário na agenda e contratação). A pasta **1c** espera 1 minuto antes de começar, porque o prestador já atingiu o limite de 10 escritas por minuto (rate limit). Com as duas APIs no ar:
 ```bash
 npx newman run postman/Bico-Certo-Contratacoes.postman_collection.json --delay-request 200
 ```
-Resultado da última execução: **34 requisições, 44 asserções, 0 falhas**.
+Resultado da última execução: **51 requisições, 67 asserções, 0 falhas** (cerca de 1 min e 40 s).
 
 ---
 

@@ -144,6 +144,150 @@
               }
             }
           ]
+        },
+        {
+          "name": "Pedro cria o pedido A (API Java)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{javaUrl}}/api/solicitacoes",
+              "host": [
+                "{{javaUrl}}"
+              ],
+              "path": [
+                "api",
+                "solicitacoes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Vazamento embaixo da pia do banheiro, o cano esta pingando\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"solicitacaoPedroA\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedro cria o pedido B (API Java)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{javaUrl}}/api/solicitacoes",
+              "host": [
+                "{{javaUrl}}"
+              ],
+              "path": [
+                "api",
+                "solicitacoes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"A descarga do banheiro nao para de correr agua\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"solicitacaoPedroB\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedro cria o pedido C (API Java)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{javaUrl}}/api/solicitacoes",
+              "host": [
+                "{{javaUrl}}"
+              ],
+              "path": [
+                "api",
+                "solicitacoes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"A torneira da cozinha esta vazando pela base\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"solicitacaoPedroC\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -277,6 +421,58 @@
           ]
         },
         {
+          "name": "Validade fora do limite (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoId}}\",\n  \"valor\": 150,\n  \"prazoDias\": 1,\n  \"validadeDias\": 45\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Explica o limite\", () => pm.expect(JSON.stringify(pm.response.json())).to.include(\"validade\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Cliente tenta enviar orcamento (403)",
           "request": {
             "method": "POST",
@@ -388,7 +584,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoId}}\",\n  \"valor\": 150,\n  \"prazoDias\": 1,\n  \"observacao\": \"Levo o desentupidor\"\n}"
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoId}}\",\n  \"valor\": 150,\n  \"prazoDias\": 1,\n  \"observacao\": \"Levo o desentupidor\",\n  \"validadeDias\": 7,\n  \"incluiMaoDeObra\": true,\n  \"incluiMaterial\": true,\n  \"incluiDeslocamento\": true,\n  \"adicionais\": \"Teste de vazamento no sifão\"\n}"
             }
           },
           "event": [
@@ -398,7 +594,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set(\"orcamentoId\", pm.response.json().id);"
+                  "pm.collectionVariables.set(\"orcamentoId\", pm.response.json().id);",
+                  "const o = pm.response.json();",
+                  "pm.test(\"Validade de 7 dias e nao expirado\", () => { pm.expect(o.validoAte).to.be.a(\"string\"); pm.expect(o.expirado).to.eql(false); const dias = (new Date(o.validoAte) - new Date(o.criadoEm)) / 86400000; pm.expect(Math.round(dias)).to.eql(7); });",
+                  "pm.test(\"Itens inclusos\", () => { pm.expect(o.incluiMaoDeObra).to.eql(true); pm.expect(o.incluiMaterial).to.eql(true); pm.expect(o.incluiDeslocamento).to.eql(true); pm.expect(o.adicionais).to.include(\"vazamento\"); });"
                 ]
               }
             }
@@ -431,7 +630,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoId}}\",\n  \"valor\": 150,\n  \"prazoDias\": 1,\n  \"observacao\": \"Levo o desentupidor\"\n}"
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoId}}\",\n  \"valor\": 150,\n  \"prazoDias\": 1,\n  \"observacao\": \"Levo o desentupidor\",\n  \"validadeDias\": 7,\n  \"incluiMaoDeObra\": true,\n  \"incluiMaterial\": true,\n  \"incluiDeslocamento\": true,\n  \"adicionais\": \"Teste de vazamento no sifão\"\n}"
             }
           },
           "event": [
@@ -910,6 +1109,416 @@
       ]
     },
     {
+      "name": "1c - Recusa e retirada",
+      "item": [
+        {
+          "name": "Prestador orça o pedido A do Pedro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoPedroA}}\",\n  \"valor\": 120,\n  \"prazoDias\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// O prestador ja fez ~10 escritas no ultimo minuto (pastas 1 e 1b) e a API limita a 10 por minuto por usuario (429).",
+                  "// Espera a janela do limite renovar antes de continuar.",
+                  "setTimeout(() => {}, 61000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"orcamentoPedroA\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Outro cliente tenta recusar (403)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoPedroA}}/recusa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoPedroA}}",
+                "recusa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedro recusa o orcamento",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoPedroA}}/recusa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoPedroA}}",
+                "recusa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Recusado\", () => pm.expect(pm.response.json().status).to.eql(\"Recusado\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recusar de novo (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoPedroA}}/recusa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoPedroA}}",
+                "recusa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestador orça o pedido B do Pedro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoPedroB}}\",\n  \"valor\": 110,\n  \"prazoDias\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"orcamentoPedroB\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestador orça o pedido C do Pedro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"solicitacaoId\": \"{{solicitacaoPedroC}}\",\n  \"valor\": 90,\n  \"prazoDias\": 1\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"orcamentoRetirar\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tenta retirar o orcamento do prestador (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoRetirar}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoRetirar}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestador retira o orcamento",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoRetirar}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoRetirar}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orcamento retirado nao existe mais (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orcamentos/{{orcamentoRetirar}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orcamentos",
+                "{{orcamentoRetirar}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "2 - Contratacoes",
       "item": [
         {
@@ -1078,6 +1687,209 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedro tenta contratar o mesmo prestador 1h depois (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contratacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contratacoes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orcamentoId\": \"{{orcamentoPedroB}}\",\n  \"dataAgendada\": \"2026-11-28T15:00:00Z\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Explica o conflito\", () => pm.expect(JSON.stringify(pm.response.json())).to.include(\"perto desse horário\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedro contrata 3h depois (horario livre)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contratacoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contratacoes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orcamentoId\": \"{{orcamentoPedroB}}\",\n  \"dataAgendada\": \"2026-11-28T17:00:00Z\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"contratacaoPedroB\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reagendar para perto de outro servico (422)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contratacoes/{{contratacaoPedroB}}/agendamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contratacoes",
+                "{{contratacaoPedroB}}",
+                "agendamento"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOutroCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataAgendada\": \"2026-11-28T14:30:00Z\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestador cancela o servico do pedido B",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/contratacoes/{{contratacaoPedroB}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contratacoes",
+                "{{contratacaoPedroB}}",
+                "status"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenPrestador}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Cancelada\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Cancelada\", () => pm.expect(pm.response.json().status).to.eql(\"Cancelada\"));"
                 ]
               }
             }
@@ -1348,6 +2160,34 @@
     },
     {
       "key": "propostaPrestadorId",
+      "value": ""
+    },
+    {
+      "key": "solicitacaoPedroA",
+      "value": ""
+    },
+    {
+      "key": "solicitacaoPedroB",
+      "value": ""
+    },
+    {
+      "key": "orcamentoPedroA",
+      "value": ""
+    },
+    {
+      "key": "orcamentoPedroB",
+      "value": ""
+    },
+    {
+      "key": "contratacaoPedroB",
+      "value": ""
+    },
+    {
+      "key": "orcamentoRetirar",
+      "value": ""
+    },
+    {
+      "key": "solicitacaoPedroC",
       "value": ""
     }
   ]
