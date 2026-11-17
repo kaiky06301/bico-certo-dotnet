@@ -7,6 +7,7 @@
 |---|---|
 | **Repositório** | https://github.com/kaiky06301/bico-certo-dotnet |
 | **API Java (núcleo do Bico Certo)** | https://github.com/kaiky06301/bico-certo-java |
+| **Deploy (Render)** | https://bico-certo-dotnet.onrender.com · Swagger: https://bico-certo-dotnet.onrender.com/swagger · Saúde: https://bico-certo-dotnet.onrender.com/health |
 | **Swagger (local)** | http://localhost:5090/swagger |
 | **Health check** | http://localhost:5090/health |
 
